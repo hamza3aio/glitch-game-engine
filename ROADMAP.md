@@ -35,3 +35,12 @@
 - Docs: README modules + controls + authoring guide
 
 Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new APIs usable from `main.ts` without breaking old components.
+
+## v1.1 — Street-city + atmosphere + flow + P2P (synced from UNDERCITY)
+
+- `src/rendering/shader.ts` + `renderer.ts` — distance fog uniforms (`fogColor/Near/Far`), 140-unit tiled ground
+- `src/rendering/sky.ts` — dawn/day/dusk/night palette for sky, fog, sun, lamps
+- `src/scene/citykit.ts` — procedural street props (houses, pines, poles + wires, shops, gas stations, cars, fences, piers, scaffolds, mountains, dashes, sidewalks)
+- `src/core/loading.ts` — staged loading screen with tips
+- `src/ui/menu.ts` — main-menu overlay (Continue/New/Settings/Credits/Quit) with hooks
+- `src/net/p2p.ts` — serverless player-hosted WebRTC (host authority, snapshots, requests, 4 max)
