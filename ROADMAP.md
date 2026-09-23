@@ -44,3 +44,9 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
 - `src/core/loading.ts` — staged loading screen with tips
 - `src/ui/menu.ts` — main-menu overlay (Continue/New/Settings/Credits/Quit) with hooks
 - `src/net/p2p.ts` — serverless player-hosted WebRTC (host authority, snapshots, requests, 4 max)
+
+## v1.2 — Cartoon actors + procedural textures + showcase demo
+
+- `src/rendering/proctex.ts` — canvas-painted faces (eyes/mouths/blush/beards), shirts, brick, grass, asphalt, roof, water, wood
+- `src/scene/actor.ts` — 7-part cartoon rigs with walk-cycle `poseActor()`, hide/show for first-person
+- Demo rewritten: menu → loading → dusk-street vignette with a walkable cartoon player and two neighbors, full day in 2 minutes

@@ -1,174 +1,202 @@
 import { Engine } from "./core/engine.js";
+import { LoadingScreen, nextFrame } from "./core/loading.js";
 import { Vec3 } from "./math/vec3.js";
 import { CharacterController } from "./physics/character.js";
 import { InputActions } from "./input/actions.js";
-import { HUD } from "./ui/hud.js";
-import { EditorOverlay } from "./editor/overlay.js";
-import { makeTrigger } from "./physics/trigger.js";
-import {
-  makeRigidbody,
-  makeTransform,
-  type MeshRef,
-  type PlayerTag,
-  type Rigidbody,
-  type Spin,
-  type Transform,
-} from "./ecs/components.js";
+import { Texture2D } from "./rendering/texture.js";
+import { skyAt } from "./rendering/sky.js";
+import { paintAsphalt, paintBrick, paintGrass, paintRoof } from "./rendering/proctex.js";
+import { buildActor, poseActor, type ActorRig } from "./scene/actor.js";
+import { car, dashes, house, pine, pole, shop, sidewalk, wireRun } from "./scene/citykit.js";
+import { MainMenu } from "./ui/menu.js";
+import { makeRigidbody, makeTransform, type MeshRef, type Rigidbody, type Transform } from "./ecs/components.js";
 import type { Entity } from "./ecs/world.js";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const stats = document.getElementById("stats")!;
-const startBtn = document.getElementById("start")!;
+const toast = document.getElementById("toast")!;
+
+function showToast(text: string, ms = 2500) {
+  toast.textContent = text;
+  toast.style.display = "block";
+  window.setTimeout(() => { toast.style.display = "none"; }, ms);
+}
 
 const engine = new Engine(canvas);
-const { world, input, audio, physics, renderer } = engine;
+const { world, input, audio, renderer } = engine;
 const actions = new InputActions(input);
 const character = new CharacterController({ speed: 6, jumpSpeed: 8, acceleration: 40 });
-const hud = new HUD(stats);
-hud.attachMessage(document.getElementById("msg")!);
+const loader = new LoadingScreen();
 
-// Warm point light above the arena (Phase 2 lighting demo)
-renderer.pointLights.push({
-  position: new Vec3(0, 6, -2),
-  color: [1.0, 0.8, 0.5],
-  intensity: 0.9,
-  range: 20,
-});
-
-function spawnBox(
-  x: number, y: number, z: number,
-  color: [number, number, number],
-  opts: { static?: boolean; scale?: Vec3; spin?: number; player?: boolean; textureId?: string } = {}
-): Entity {
-  const e = world.create();
-  const t = makeTransform(x, y, z);
-  if (opts.scale) t.scale = opts.scale;
-  world.add(e, "transform", t);
-  world.add<MeshRef>(e, "mesh", { meshId: "cube", color, textureId: opts.textureId });
-  world.add(e, "collider", {
-    halfExtents: new Vec3(0.5, 0.5, 0.5),
-    isStatic: opts.static ?? false,
-  });
-  if (opts.static) {
-    world.add(e, "rigidbody", { velocity: new Vec3(), useGravity: false, mass: 0, grounded: true });
-  } else {
-    world.add(e, "rigidbody", makeRigidbody(true, 1));
-  }
-  if (opts.spin) world.add<Spin>(e, "spin", { speed: opts.spin });
-  if (opts.player) world.add<PlayerTag>(e, "player", { speed: 6, jumpSpeed: 8 });
-  return e;
+function tex(id: string, img: TexImageSource) {
+  const t = new Texture2D((renderer as unknown as { gl: WebGL2RenderingContext }).gl);
+  t.fromImage(img);
+  renderer.registerTexture(id, t);
 }
 
-// Ground (visual plane + static collider)
-{
+// ---------- build the dusk-street vignette ----------
+let player = 0 as Entity;
+let rig: ActorRig;
+let npcA: ActorRig;
+let npcB: ActorRig;
+let npcPhase = 0;
+let timeMin = 17.5 * 60; // start at golden dusk
+const menu = new MainMenu({
+  onContinue: () => void enter(),
+  onNew: () => void enter(),
+  onSettings: () => showToast("Showcase settings: drag to orbit, WASD to walk."),
+  onCredits: () => showToast("Glitch v1.2 — actors, proctex, sky, fog, citykit. All procedural, all original."),
+  onQuit: () => window.close(),
+});
+
+async function build() {
+  loader.show("GLITCH");
+  loader.stage(0.1, "Painting textures…");
+  await nextFrame();
+  tex("grass", paintGrass());
+  tex("asphalt", paintAsphalt());
+  tex("brick", paintBrick([0.55, 0.3, 0.22]));
+  tex("roof", paintRoof([0.3, 0.24, 0.2]));
+
+  loader.stage(0.3, "Paving streets…");
+  await nextFrame();
+  // ground
   const g = world.create();
   world.add(g, "transform", makeTransform(0, -0.51, 0));
-  world.add<MeshRef>(g, "mesh", { meshId: "ground", color: [0.4, 0.7, 0.45], textureId: "checker", uvScale: 4 });
-  world.add(g, "collider", {
-    halfExtents: new Vec3(15, 0.5, 15),
-    isStatic: true,
+  world.add<MeshRef>(g, "mesh", { meshId: "ground", color: [0.5, 0.55, 0.45], textureId: "grass" });
+  world.add(g, "collider", { halfExtents: new Vec3(70, 0.5, 70), isStatic: true });
+  // road along x with dashes + sidewalks
+  const road = world.create();
+  const rt = makeTransform(0, 0.02, 0);
+  rt.scale.set(120, 0.05, 7);
+  world.add(road, "transform", rt);
+  world.add<MeshRef>(road, "mesh", { meshId: "cube", color: [0.9, 0.9, 0.9], textureId: "asphalt", uvScale: 6 });
+  dashes(world, 0, -54, 54, true);
+  sidewalk(world, 0, -5.5, 120, 2.5);
+  sidewalk(world, 0, 5.5, 120, 2.5);
+
+  loader.stage(0.55, "Raising houses…");
+  await nextFrame();
+  house(world, -14, -14, 7, 7, 3.2, [0.62, 0.38, 0.28], [0.3, 0.24, 0.2]);
+  house(world, 2, -15, 6, 6.5, 3, [0.55, 0.52, 0.46], [0.32, 0.2, 0.16]);
+  shop(world, 18, -12, 9, 4.5, 7, [0.5, 0.46, 0.4], [0.2, 0.7, 0.9]);
+  pine(world, -24, 10, 1.2);
+  pine(world, -6, 12, 1.0);
+  pine(world, 12, 11, 1.3);
+  pine(world, 28, 10, 0.9);
+  pole(world, -20, 4.5);
+  wireRun(world, 20.5, -44, 20.5, 44);
+  car(world, 8, -1.5, Math.PI / 2, [0.15, 0.35, 0.6]);
+
+  loader.stage(0.75, "Waking actors…");
+  await nextFrame();
+  const addTex = (id: string, img: TexImageSource) => tex(id, img);
+  // player: physics root (hidden) + cartoon rig
+  player = world.create();
+  {
+    const t = makeTransform(0, 2, 8);
+    t.scale.set(0.9, 2.0, 0.9);
+    world.add(player, "transform", t);
+    world.add<MeshRef>(player, "mesh", { meshId: "cube", color: [1, 1, 1] });
+    const m = world.get<MeshRef>(player, "mesh")!;
+    m.meshId = "player-hidden";
+    world.add(player, "collider", { halfExtents: new Vec3(0.5, 0.5, 0.5), isStatic: false });
+    world.add(player, "rigidbody", makeRigidbody(true, 1));
+  }
+  renderer.registerMesh("player-hidden", {
+    positions: new Float32Array(0), normals: new Float32Array(0),
+    uvs: new Float32Array(0), indices: new Uint16Array(0),
   });
+  rig = buildActor(world, addTex, {
+    skin: [0.95, 0.76, 0.6], shirt: [0.2, 0.5, 1.0], trim: [0.1, 0.2, 0.5],
+    pants: [0.16, 0.18, 0.24], hair: [0.25, 0.16, 0.1], tag: "hero",
+    face: { eye: "round", mouth: "smile", blush: true, beard: false },
+  });
+  npcA = buildActor(world, addTex, {
+    skin: [0.72, 0.52, 0.38], shirt: [0.3, 0.7, 0.35], trim: [0.15, 0.35, 0.18],
+    pants: [0.2, 0.2, 0.22], hair: [0.1, 0.1, 0.12], tag: "npcA",
+    face: { eye: "happy", mouth: "smirk", blush: false, beard: false },
+  });
+  npcB = buildActor(world, addTex, {
+    skin: [0.9, 0.7, 0.55], shirt: [0.15, 0.25, 0.7], trim: [0.1, 0.15, 0.4],
+    pants: [0.12, 0.12, 0.16], hair: null, tag: "npcB",
+    face: { eye: "stern", mouth: "flat", blush: false, beard: true },
+  });
+
+  loader.stage(0.9, "Lighting lamps…");
+  await nextFrame();
+  renderer.pointLights.push(
+    { position: new Vec3(-8, 3.5, 4), color: [1.0, 0.85, 0.6], intensity: 0, range: 20 },
+    { position: new Vec3(8, 3.5, 4), color: [1.0, 0.85, 0.6], intensity: 0, range: 20 },
+  );
+  await loader.hide();
+  menu.show(true, "v1.2.0", "WASD walk · drag orbit · Space jump. Full day in 2 minutes.");
 }
 
-// Platforms (textured to show Phase 2 materials)
-spawnBox(3, 0.5, -2, [0.7, 0.7, 0.75], { static: true, scale: new Vec3(3, 1, 3), textureId: "checker" });
-spawnBox(-3, 1.5, 2, [0.75, 0.6, 0.4], { static: true, scale: new Vec3(2, 1, 2), textureId: "checker" });
-spawnBox(0, 2.5, -5, [0.5, 0.5, 0.8], { static: true, scale: new Vec3(2, 1, 2), textureId: "checker" });
-
-// Goal trigger above the far platform (Phase 3 demo)
-const goal = world.create();
-world.add(goal, "transform", makeTransform(0, 3.5, -5));
-world.add(goal, "trigger", makeTrigger(1.5, 1.5, 1.5));
-engine.triggers.onEnter = (tr, other) => {
-  if (tr === goal && other === player) {
-    audio.trigger();
-    hud.showMessage("Goal reached! Press R to reset.", 3);
-  }
-};
-
-// Player
-const player = spawnBox(0, 2, 3, [0.2, 0.5, 1.0], { player: true });
-
-// Spinning collectibles (no collision response needed — kinematic look)
-const coins: Entity[] = [
-  spawnBox(3, 2, -2, [1.0, 0.8, 0.2], { spin: 2.5 }),
-  spawnBox(-3, 3, 2, [1.0, 0.8, 0.2], { spin: 2.5 }),
-  spawnBox(0, 4, -5, [1.0, 0.8, 0.2], { spin: 3.0 }),
-];
-for (const c of coins) {
-  world.remove(c, "collider");
-  world.remove(c, "rigidbody");
-  const t = world.get<Transform>(c, "transform")!;
-  t.scale.set(0.5, 0.5, 0.5);
+let entered = false;
+let walkPhase = 0;
+async function enter() {
+  menu.hide();
+  entered = true;
+  showToast("Dusk Street — meet the neighbors. Time lapses overhead.");
 }
 
-// --- Systems ---
 engine.addSystem((dt) => {
-  // Player movement, camera-relative (Phase 4 InputActions + Phase 3 CharacterController)
-  const t = world.get<Transform>(player, "transform")!;
-  const rb = world.get<Rigidbody>(player, "rigidbody")!;
-  const tag = world.get<PlayerTag>(player, "player")!;
-  void tag;
-  const move = actions.move();
-  const yaw = renderer.camera.yaw;
-  const sin = Math.sin(yaw), cos = Math.cos(yaw);
-  const wishX = move.x * cos - move.z * sin;
-  const wishZ = -move.z * cos - move.x * sin;
-  const wasGrounded = rb.grounded;
-  character.move(t, rb, wishX, wishZ, actions.jump(), dt, () => audio.jump());
-  void wasGrounded;
-  if (actions.reset()) {
-    t.position.set(0, 2, 3);
-    rb.velocity.set(0, 0, 0);
+  // sky clock: full day in 120s
+  timeMin += dt * (24 * 60 / 120);
+  if (timeMin >= 24 * 60) timeMin -= 24 * 60;
+  const frame = skyAt(timeMin / 60);
+  renderer.clearColor = [...frame.sky];
+  renderer.fogColor = [...frame.fog];
+  renderer.lightIntensity = frame.sunI;
+  if (renderer.pointLights.length >= 2) {
+    renderer.pointLights[0].intensity = frame.lamp * 1.1;
+    renderer.pointLights[1].intensity = frame.lamp * 1.1;
   }
 
-  // Spin collectibles + pickup check
-  for (const c of [...coins]) {
-    const ct = world.get<Transform>(c, "transform");
-    const cs = world.get<Spin>(c, "spin");
-    if (!ct || !cs) continue;
-    ct.rotationY += cs.speed * dt;
-    ct.position.y += Math.sin(performance.now() / 500 + c) * dt * 0.5;
-    const d = ct.position.clone().sub(t.position).length();
-    if (d < 1.0) {
-      world.destroy(c);
-      coins.splice(coins.indexOf(c), 1);
-      audio.pickup();
+  const t = world.get<Transform>(player, "transform");
+  const rb = world.get<Rigidbody>(player, "rigidbody");
+  if (!t || !rb) return;
+
+  if (entered) {
+    const move = actions.move();
+    const yaw = renderer.camera.yaw;
+    const sin = Math.sin(yaw), cos = Math.cos(yaw);
+    const wishX = move.x * cos - move.z * sin;
+    const wishZ = -move.z * cos - move.x * sin;
+    const wasAir = !rb.grounded;
+    character.move(t, rb, wishX, wishZ, actions.jump(), dt, () => audio.jump());
+    if (wasAir && rb.grounded) audio.land();
+    if (actions.reset()) { t.position.set(0, 2, 8); rb.velocity.set(0, 0, 0); }
+    const moving = Math.abs(wishX) + Math.abs(wishZ) > 0.1;
+    if (moving) {
+      t.rotationY = Math.atan2(wishX, wishZ);
+      walkPhase += dt * 9;
     }
+    poseActor(world, rig, t.position.x, Math.max(0, t.position.y - 1.0), t.position.z, t.rotationY, walkPhase, moving);
+    const drag = input.consumeDrag();
+    renderer.camera.updateOrbit(drag.dx, drag.dy);
+    renderer.camera.follow(t.position);
+  } else {
+    // menu backdrop: slow orbit
+    renderer.camera.yaw += dt * 0.06;
+    renderer.camera.dist = 20;
+    poseActor(world, rig, t.position.x, t.position.y - 1.0, t.position.z, t.rotationY, 0, false);
   }
 
-  // Camera
-  const drag = input.consumeDrag();
-  renderer.camera.updateOrbit(drag.dx, drag.dy);
-  renderer.camera.follow(t.position);
+  // neighbors: A paces, B stands stern
+  npcPhase += dt * 1.2;
+  const ax = -8 + Math.sin(npcPhase * 0.35) * 5;
+  poseActor(world, npcA, ax, 0, 6, Math.cos(npcPhase * 0.35) > 0 ? Math.PI / 2 : -Math.PI / 2, npcPhase * 4, true);
+  poseActor(world, npcB, 6, 0, -6, Math.PI, npcPhase, false);
+
+  const hh = Math.floor(timeMin / 60), mm = Math.floor(timeMin % 60);
+  stats.textContent = `${engine.loop.time.fps} fps · ${world.count()} entities · ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 });
 
-physics.onCollide = ({ a, b }) => {
-  if (a === player && (b === -1 || b === -2)) {
-    if (b === -1) audio.land();
-  }
-};
-
-// HUD
-let hudTimer = 0;
-let editor: EditorOverlay | null = null;
-if (new URLSearchParams(location.search).has("editor")) {
-  editor = new EditorOverlay(world, document.getElementById("ui")!);
-}
-engine.addSystem((dt) => {
-  hud.update(dt);
-  hudTimer += dt;
-  if (hudTimer > 0.25) {
-    hudTimer = 0;
-    hud.setStats(`${engine.loop.time.fps} fps · ${world.count()} entities · ${coins.length} coins · Glitch v1.0`);
-  }
-  if (editor && !editor.isPaused()) editor.update();
-});
-
-startBtn.addEventListener("click", () => {
-  audio.resume();
-  startBtn.remove();
-  canvas.focus();
-});
+const unlock = () => audio.resume();
+window.addEventListener("pointerdown", unlock, { once: true });
+window.addEventListener("keydown", unlock, { once: true });
 
 engine.start();
+void build();

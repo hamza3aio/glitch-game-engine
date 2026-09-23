@@ -1,4 +1,4 @@
-# Glitch Game Engine v1.1
+# Glitch Game Engine v1.2
 
 Minimal 3D web game engine (raw WebGL2, zero runtime deps). Full version, built in phases — see `ROADMAP.md`.
 
@@ -7,11 +7,11 @@ Minimal 3D web game engine (raw WebGL2, zero runtime deps). Full version, built 
 - `src/math/` — `Vec3`, `Mat4`
 - `src/core/` — `GameLoop` (fixed-step), `Time`, `Engine` (physics + triggers wired), `loading.ts` (staged loading screen)
 - `src/ecs/` — `World`, `Transform/Rigidbody/BoxCollider/MeshRef(+texture)/Spin/PlayerTag`
-- `src/rendering/` — `Renderer` (textured, multi-light, distance fog), `Camera`, `GpuMesh` (+UVs), `texture.ts`, `material.ts`, `lights.ts`, `obj.ts`, `sky.ts` (dawn/day/dusk/night palette)
+- `src/rendering/` — `Renderer` (textured, multi-light, distance fog), `Camera`, `GpuMesh` (+UVs), `texture.ts`, `material.ts`, `lights.ts`, `obj.ts`, `sky.ts` (dawn/day/dusk/night palette), `proctex.ts` (procedural canvas textures: faces, cloth, brick, grass, asphalt, roof, water, wood)
 - `src/physics/` — AABB `physics.ts`, `raycast.ts`, `trigger.ts`, `character.ts`
 - `src/input/` — `input.ts` + `actions.ts` (move/jump/reset)
 - `src/audio/` — `AudioEngine` (blips, positional, music loop)
-- `src/scene/` — `prefab.ts` (box/platform/pickup/trigger), `scene.ts` (save/load JSON), `citykit.ts` (procedural street props: houses, pines, poles + wires, shops, gas stations, cars, fences, piers, scaffolds, mountains)
+- `src/scene/` — `prefab.ts` (box/platform/pickup/trigger), `scene.ts` (save/load JSON), `citykit.ts` (procedural street props: houses, pines, poles + wires, shops, gas stations, cars, fences, piers, scaffolds, mountains), `actor.ts` (cartoonish articulated characters: painted faces, walk-cycle posing, mesh hide/show)
 - `src/assets/` — `loader.ts` (texture/OBJ/JSON with cache)
 - `src/editor/` — `overlay.ts` (hierarchy + inspector + save/load, `?editor=1`)
 - `src/examples/` — `second-level.ts`
