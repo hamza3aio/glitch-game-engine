@@ -1,5 +1,10 @@
 import { Engine } from "./core/engine.js";
 import { Vec3 } from "./math/vec3.js";
+import { CharacterController } from "./physics/character.js";
+import { InputActions } from "./input/actions.js";
+import { HUD } from "./ui/hud.js";
+import { EditorOverlay } from "./editor/overlay.js";
+import { makeTrigger } from "./physics/trigger.js";
 import {
   makeRigidbody,
   makeTransform,
@@ -17,17 +22,29 @@ const startBtn = document.getElementById("start")!;
 
 const engine = new Engine(canvas);
 const { world, input, audio, physics, renderer } = engine;
+const actions = new InputActions(input);
+const character = new CharacterController({ speed: 6, jumpSpeed: 8, acceleration: 40 });
+const hud = new HUD(stats);
+hud.attachMessage(document.getElementById("msg")!);
+
+// Warm point light above the arena (Phase 2 lighting demo)
+renderer.pointLights.push({
+  position: new Vec3(0, 6, -2),
+  color: [1.0, 0.8, 0.5],
+  intensity: 0.9,
+  range: 20,
+});
 
 function spawnBox(
   x: number, y: number, z: number,
   color: [number, number, number],
-  opts: { static?: boolean; scale?: Vec3; spin?: number; player?: boolean } = {}
+  opts: { static?: boolean; scale?: Vec3; spin?: number; player?: boolean; textureId?: string } = {}
 ): Entity {
   const e = world.create();
   const t = makeTransform(x, y, z);
   if (opts.scale) t.scale = opts.scale;
   world.add(e, "transform", t);
-  world.add<MeshRef>(e, "mesh", { meshId: "cube", color });
+  world.add<MeshRef>(e, "mesh", { meshId: "cube", color, textureId: opts.textureId });
   world.add(e, "collider", {
     halfExtents: new Vec3(0.5, 0.5, 0.5),
     isStatic: opts.static ?? false,
@@ -46,17 +63,28 @@ function spawnBox(
 {
   const g = world.create();
   world.add(g, "transform", makeTransform(0, -0.51, 0));
-  world.add<MeshRef>(g, "mesh", { meshId: "ground", color: [0.16, 0.35, 0.2] });
+  world.add<MeshRef>(g, "mesh", { meshId: "ground", color: [0.4, 0.7, 0.45], textureId: "checker", uvScale: 4 });
   world.add(g, "collider", {
     halfExtents: new Vec3(15, 0.5, 15),
     isStatic: true,
   });
 }
 
-// Platforms
-spawnBox(3, 0.5, -2, [0.5, 0.5, 0.55], { static: true, scale: new Vec3(3, 1, 3) });
-spawnBox(-3, 1.5, 2, [0.55, 0.4, 0.2], { static: true, scale: new Vec3(2, 1, 2) });
-spawnBox(0, 2.5, -5, [0.3, 0.3, 0.6], { static: true, scale: new Vec3(2, 1, 2) });
+// Platforms (textured to show Phase 2 materials)
+spawnBox(3, 0.5, -2, [0.7, 0.7, 0.75], { static: true, scale: new Vec3(3, 1, 3), textureId: "checker" });
+spawnBox(-3, 1.5, 2, [0.75, 0.6, 0.4], { static: true, scale: new Vec3(2, 1, 2), textureId: "checker" });
+spawnBox(0, 2.5, -5, [0.5, 0.5, 0.8], { static: true, scale: new Vec3(2, 1, 2), textureId: "checker" });
+
+// Goal trigger above the far platform (Phase 3 demo)
+const goal = world.create();
+world.add(goal, "transform", makeTransform(0, 3.5, -5));
+world.add(goal, "trigger", makeTrigger(1.5, 1.5, 1.5));
+engine.triggers.onEnter = (tr, other) => {
+  if (tr === goal && other === player) {
+    audio.trigger();
+    hud.showMessage("Goal reached! Press R to reset.", 3);
+  }
+};
 
 // Player
 const player = spawnBox(0, 2, 3, [0.2, 0.5, 1.0], { player: true });
@@ -76,25 +104,20 @@ for (const c of coins) {
 
 // --- Systems ---
 engine.addSystem((dt) => {
-  // Player movement, camera-relative
+  // Player movement, camera-relative (Phase 4 InputActions + Phase 3 CharacterController)
   const t = world.get<Transform>(player, "transform")!;
   const rb = world.get<Rigidbody>(player, "rigidbody")!;
   const tag = world.get<PlayerTag>(player, "player")!;
-  const fwd = input.axis("KeyS", "KeyW");
-  const strafe = input.axis("KeyA", "KeyD");
+  void tag;
+  const move = actions.move();
   const yaw = renderer.camera.yaw;
   const sin = Math.sin(yaw), cos = Math.cos(yaw);
-  // camera forward on ground plane
-  const mx = (strafe * cos - fwd * sin) * tag.speed;
-  const mz = (-fwd * cos - strafe * sin) * tag.speed;
-  rb.velocity.x = mx;
-  rb.velocity.z = mz;
-  if (input.down("Space") && rb.grounded) {
-    rb.velocity.y = tag.jumpSpeed;
-    rb.grounded = false;
-    audio.jump();
-  }
-  if (input.down("KeyR")) {
+  const wishX = move.x * cos - move.z * sin;
+  const wishZ = -move.z * cos - move.x * sin;
+  const wasGrounded = rb.grounded;
+  character.move(t, rb, wishX, wishZ, actions.jump(), dt, () => audio.jump());
+  void wasGrounded;
+  if (actions.reset()) {
     t.position.set(0, 2, 3);
     rb.velocity.set(0, 0, 0);
   }
@@ -128,12 +151,18 @@ physics.onCollide = ({ a, b }) => {
 
 // HUD
 let hudTimer = 0;
+let editor: EditorOverlay | null = null;
+if (new URLSearchParams(location.search).has("editor")) {
+  editor = new EditorOverlay(world, document.getElementById("ui")!);
+}
 engine.addSystem((dt) => {
+  hud.update(dt);
   hudTimer += dt;
   if (hudTimer > 0.25) {
     hudTimer = 0;
-    stats.textContent = `${engine.loop.time.fps} fps · ${world.count()} entities · ${coins.length} coins`;
+    hud.setStats(`${engine.loop.time.fps} fps · ${world.count()} entities · ${coins.length} coins · Glitch v1.0`);
   }
+  if (editor && !editor.isPaused()) editor.update();
 });
 
 startBtn.addEventListener("click", () => {

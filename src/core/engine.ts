@@ -2,6 +2,7 @@ import { World } from "../ecs/world.js";
 import { GameLoop } from "../core/loop.js";
 import { Renderer } from "../rendering/renderer.js";
 import { Physics } from "../physics/physics.js";
+import { TriggerSystem } from "../physics/trigger.js";
 import { Input } from "../input/input.js";
 import { AudioEngine } from "../audio/audio.js";
 
@@ -9,6 +10,7 @@ export class Engine {
   world = new World();
   renderer: Renderer;
   physics = new Physics();
+  triggers = new TriggerSystem();
   input = new Input();
   audio = new AudioEngine();
   loop: GameLoop;
@@ -21,6 +23,7 @@ export class Engine {
       (dt) => {
         for (const s of this.systems) s(dt);
         this.physics.step(this.world, dt);
+        this.triggers.update(this.world);
       },
       () => this.renderer.frame(this.world)
     );

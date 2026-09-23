@@ -29,6 +29,9 @@ export interface BoxCollider {
 export interface MeshRef {
   meshId: string;
   color: [number, number, number];
+  textureId?: string;
+  uvScale?: number;
+  shininess?: number;
 }
 
 export interface Spin {

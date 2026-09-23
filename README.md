@@ -1,35 +1,36 @@
-# Glitch Game Engine v0.1
+# Glitch Game Engine v1.0
 
-Minimal 3D web game engine (raw WebGL2, zero runtime deps).
+Minimal 3D web game engine (raw WebGL2, zero runtime deps). Full version, built in phases — see `ROADMAP.md`.
 
 ## Modules
 
-- `src/math/` — `Vec3`, `Mat4` (perspective, lookAt, compose)
-- `src/core/` — `GameLoop` (fixed-step physics + variable render), `Time`, `Engine`
-- `src/ecs/` — `World` (entities + component stores + query), `components.ts`
-- `src/rendering/` — WebGL2 `Renderer`, `Camera` (orbit/follow), `GpuMesh`, shaders, `cube`/`plane` primitives
-- `src/physics/` — AABB integration, box-on-box resolve, ground plane, `onCollide` events
-- `src/input/` — keyboard + pointer-drag orbit
-- `src/audio/` — WebAudio blips (jump/land/pickup)
+- `src/math/` — `Vec3`, `Mat4`
+- `src/core/` — `GameLoop` (fixed-step), `Time`, `Engine` (physics + triggers wired)
+- `src/ecs/` — `World`, `Transform/Rigidbody/BoxCollider/MeshRef(+texture)/Spin/PlayerTag`
+- `src/rendering/` — `Renderer` (textured, multi-light), `Camera`, `GpuMesh` (+UVs), `texture.ts`, `material.ts`, `lights.ts`, `obj.ts`
+- `src/physics/` — AABB `physics.ts`, `raycast.ts`, `trigger.ts`, `character.ts`
+- `src/input/` — `input.ts` + `actions.ts` (move/jump/reset)
+- `src/audio/` — `AudioEngine` (blips, positional, music loop)
+- `src/scene/` — `prefab.ts` (box/platform/pickup/trigger), `scene.ts` (save/load JSON)
+- `src/assets/` — `loader.ts` (texture/OBJ/JSON with cache)
+- `src/editor/` — `overlay.ts` (hierarchy + inspector + save/load, `?editor=1`)
+- `src/examples/` — `second-level.ts`
+- `src/ui/` — `hud.ts`
 
 ## Run
 
 ```bash
-cd game-engine
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173. Click Start, then `WASD` move, `Space` jump, drag to orbit, `R` reset.
+Open http://localhost:5173. Click Start: `WASD` move, `Space` jump, drag orbit, `R` reset. Add `?editor=1` for the editor overlay. Reach the far platform to trigger the goal message.
 
-## Demo scene (`src/main.ts`)
+## Authoring
 
-Player cube with rigidbody, 3 static platforms, ground plane, 3 spinning pickups, follow camera, FPS HUD.
+```ts
+import { Engine } from "./core/engine.js";
+import { createPlatform, createPickup } from "./scene/prefab.js";
+```
 
-## Next steps
-
-- glTF loader, textures, skybox
-- capsule/raycast character controller, slopes
-- shadow mapping, more lights
-- editor UI / level serialization
-- WASM physics (Rapier) swap
+Build levels with prefabs, query with `world.query("transform", "mesh")`, save with `saveScene(world)`.
