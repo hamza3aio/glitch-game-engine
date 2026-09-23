@@ -1,9 +1,9 @@
 {
-  "name": "markley-3d-engine",
+  "name": "glitch-game-engine",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Minimal 3D web game engine: loop, WebGL2 rendering, ECS, physics, input, audio.",
+  "description": "Glitch Game Engine: minimal 3D web game engine with loop, WebGL2 rendering, ECS, physics, input, audio.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

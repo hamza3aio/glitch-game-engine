@@ -1,4 +1,4 @@
-# Markley 3D Engine v0.1
+# Glitch Game Engine v0.1
 
 Minimal 3D web game engine (raw WebGL2, zero runtime deps).
 
