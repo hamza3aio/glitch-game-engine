@@ -4,6 +4,7 @@ import { Vec3 } from "./math/vec3.js";
 import { CharacterController } from "./physics/character.js";
 import { InputActions } from "./input/actions.js";
 import { skyAt } from "./rendering/sky.js";
+import { hideBlob, makeBlob, stickBlob } from "./rendering/shadows.js";
 import { paintAsphalt, paintBrick, paintGrass, paintRoof, paintSign } from "./rendering/proctex.js";
 import { buildActor, poseActor, type ActorRig } from "./scene/actor.js";
 import { loadScene } from "./scene/scene.js";
@@ -97,6 +98,10 @@ let npcPhase = 0;
 let walkPhase = 0;
 let entered = false;
 let editor: EditorOverlay | null = null;
+let blobHero = 0 as Entity;
+let blobA = 0 as Entity;
+let blobB = 0 as Entity;
+const blobCrates: Entity[] = [];
 
 // shift state: 22:00 -> 06:00 (8 game-hours), full day = 480s
 const SHIFT_START = 22 * 60;
@@ -184,6 +189,7 @@ async function build() {
   pine(world, -6, 12, 1.0);
   pine(world, 12, 11, 1.3);
   car(world, 8, -1.5, Math.PI / 2, [0.15, 0.35, 0.6]);
+  stickBlob(world, makeBlob(world, 3.2), 8, 0, -1.5);
   pole(world, -20, 4.5);
   wireRun(world, 20.5, -44, 20.5, 44);
 
@@ -203,6 +209,7 @@ async function build() {
     ct.scale.set(0.55, 0.55, 0.55);
     world.add<MeshRef>(c, "mesh", { meshId: "cube", color: [1.0, 0.75, 0.2] });
     crates.push(c);
+    blobCrates.push(makeBlob(world, 0.8));
   }
 
   loader.stage(0.75, "Waking actors…");
@@ -237,6 +244,9 @@ async function build() {
     pants: [0.12, 0.12, 0.16], hair: null, tag: "npcB",
     face: { eye: "stern", mouth: "flat", blush: false, beard: true },
   });
+  blobHero = makeBlob(world, 1.3);
+  blobA = makeBlob(world, 1.3);
+  blobB = makeBlob(world, 1.3);
 
   loader.stage(0.9, "Lighting lamps…");
   await nextFrame();
@@ -307,19 +317,22 @@ engine.addSystem((dt) => {
       walkPhase += dt * 9;
     }
     poseActor(world, rig, t.position.x, Math.max(0, t.position.y - 1.0), t.position.z, t.rotationY, walkPhase, moving);
+    stickBlob(world, blobHero, t.position.x, 0, t.position.z);
 
     // crates: touch to collect, green pad to deliver
-    for (const c of crates) {
+    crates.forEach((c, i) => {
       const ct = world.get<Transform>(c, "transform")!;
-      if (ct.position.y < -5) continue;
+      if (ct.position.y < -5) return;
       ct.rotationY += dt * 2;
+      stickBlob(world, blobCrates[i], ct.position.x, 0, ct.position.z);
       if (Math.hypot(t.position.x - ct.position.x, t.position.z - ct.position.z) < 1.3) {
         ct.position.set(0, -10, 0);
+        hideBlob(world, blobCrates[i]);
         carried++;
         audio.blip(700, 0.1, "sine", 0.07);
         showToast(`Crate ${carried}/5 — deliver at the green pad.`);
       }
-    }
+    });
     const pt = world.get<Transform>(pad, "transform")!;
     if (carried > 0 && Math.hypot(t.position.x - pt.position.x, t.position.z - pt.position.z) < 2.2) {
       delivered += carried;
@@ -343,6 +356,8 @@ engine.addSystem((dt) => {
   const ax = -8 + Math.sin(npcPhase * 0.35) * 5;
   poseActor(world, npcA, ax, 0, 6, Math.cos(npcPhase * 0.35) > 0 ? Math.PI / 2 : -Math.PI / 2, npcPhase * 4, true);
   poseActor(world, npcB, 6, 0, -6, Math.PI, npcPhase, false);
+  stickBlob(world, blobA, ax, 0, 6);
+  stickBlob(world, blobB, 6, 0, -6);
 
   stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · ${clockText()}`;
 });
