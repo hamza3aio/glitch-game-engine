@@ -1,6 +1,18 @@
-# Glitch Game Engine v1.2
+# Glitch Game Engine v2.0
 
-Minimal 3D web game engine (raw WebGL2, zero runtime deps). Full version, built in phases — see `ROADMAP.md`.
+Minimal 3D web game engine (raw WebGL2, zero runtime deps). Launches with a
+project browser (New / My / Sample projects), edits scenes in-app, and ships
+a playable sample game. See `ROADMAP.md`.
+
+## Run the engine
+
+```bash
+npm install
+npm run dist:exe
+```
+
+Launch the app → project browser → **Sample Projects → Play**
+(Dusk Street: Night Shift), or **New Project** and press **F9** to edit.
 
 ## Modules
 

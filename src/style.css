@@ -52,3 +52,16 @@ body.in-menu #hud { display: none; }
 #loadfill { height: 100%; width: 0%; background: linear-gradient(90deg, #0f766e, #2dd4bf); transition: width 0.25s; }
 #loadlabel { margin-top: 10px; font-size: 13px; }
 #loadtip { margin-top: 14px; font-size: 12px; opacity: 0.6; }
+#modal {
+  position: absolute; inset: 0; display: none; z-index: 40;
+  background: rgba(0, 0, 0, 0.6); align-items: center; justify-content: center;
+}
+#modal .card {
+  background: #0d1322; border: 1px solid #2dd4bf; border-radius: 12px;
+  padding: 20px 24px; width: min(440px, 90vw); font-size: 14px;
+}
+#modal h2 { margin: 0 0 10px 0; color: #2dd4bf; letter-spacing: 1px; }
+#modal button {
+  background: #0f766e; color: #fff; border: 1px solid #2dd4bf; border-radius: 6px;
+  padding: 7px 14px; font-size: 13px; cursor: pointer; margin: 10px 6px 0 0;
+}

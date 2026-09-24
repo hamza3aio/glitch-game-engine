@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Glitch Engine</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0b0e14; color: #e8ecf1; font-family: system-ui, sans-serif; }
+  #app { display: flex; height: 100vh; }
+  #side { width: 250px; background: #11151f; padding: 22px 14px; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+  #logo { font-size: 26px; font-weight: 900; letter-spacing: 5px; color: #2dd4bf; padding: 0 8px; }
+  #logosub { font-size: 11px; letter-spacing: 3px; opacity: 0.6; padding: 0 8px 18px; }
+  .nav { border: none; background: none; color: #e8ecf1; text-align: left; font-size: 14px; padding: 9px 10px; border-radius: 7px; cursor: pointer; }
+  .nav:hover, .nav.sel { background: #1e293b; }
+  .nav.primary { background: #0f766e; font-weight: 700; margin-bottom: 6px; }
+  .nav.primary:hover { background: #14a090; }
+  #main { flex: 1; padding: 30px 36px; overflow: auto; }
+  h2 { margin: 0 0 6px 0; letter-spacing: 1px; }
+  .muted { opacity: 0.6; font-size: 13px; }
+  .cards { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 16px; }
+  .card { width: 250px; background: #141b2c; border: 1px solid #334155; border-radius: 10px; padding: 14px; }
+  .card h3 { margin: 0 0 6px 0; font-size: 15px; }
+  .card p { font-size: 12px; opacity: 0.7; min-height: 48px; }
+  .card button { width: 100%; margin-top: 8px; background: #1e293b; color: #fff; border: 1px solid #475569; border-radius: 6px; padding: 8px; cursor: pointer; }
+  .card button:hover { border-color: #2dd4bf; }
+  .card button.go { background: #0f766e; border-color: #2dd4bf; }
+  #projlist { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .proj { display: flex; align-items: center; gap: 10px; background: #141b2c; border: 1px solid #334155; border-radius: 8px; padding: 10px 12px; }
+  .proj .nm { font-weight: 700; }
+  .proj .pa { font-size: 11px; opacity: 0.55; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .proj button { background: #1e293b; color: #fff; border: 1px solid #475569; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  .proj button:hover { border-color: #2dd4bf; }
+  input[type=text] { width: 100%; background: #0f172a; color: #fff; border: 1px solid #475569; border-radius: 6px; padding: 8px 10px; margin-top: 10px; }
+  #msg { margin-top: 12px; font-size: 13px; color: #2dd4bf; min-height: 18px; }
+  ol.guide { font-size: 13px; line-height: 1.9; opacity: 0.9; }
+  code { background: #0f172a; padding: 1px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <div id="logo">GLITCH</div>
+    <div id="logosub">ENGINE <span id="ver">…</span></div>
+    <button class="nav primary" data-view="new">＋ New Project</button>
+    <button class="nav" data-view="mine">My Projects</button>
+    <button class="nav" data-view="samples">Sample Projects</button>
+    <button class="nav" data-view="guide">Guide</button>
+  </div>
+  <div id="main"></div>
+</div>
+<script>
+const api = window.glitch;
+const main = document.getElementById("main");
+const msg = (t) => { /* per-view */ };
+let view = "new";
+
+async function boot() {
+  try { document.getElementById("ver").textContent = "v" + await api.version(); } catch {}
+  document.querySelectorAll(".nav").forEach((b) => {
+    b.onclick = () => {
+      document.querySelectorAll(".nav").forEach((x) => x.classList.remove("sel"));
+      b.classList.add("sel");
+      view = b.dataset.view;
+      render();
+    };
+  });
+  render();
+}
+
+function say(t) {
+  const m = document.getElementById("msg");
+  if (m) m.textContent = t;
+}
+
+async function render() {
+  if (view === "new") {
+    main.innerHTML = `<h2>New Project</h2>
+      <div class="muted">Scaffold a scene-based project in your Documents/GlitchProjects, then open it in the editor.</div>
+      <input type="text" id="pname" maxlength="40" placeholder="Project name — e.g. Neon Streets" />
+      <div class="cards"><div class="card"><h3>Blank Scene</h3><p>Empty world with ground, sky and a lamp. Press F9 in the editor to build.</p><button class="go" id="create">Create & Open</button></div></div>
+      <div id="msg"></div>`;
+    document.getElementById("create").onclick = async () => {
+      const name = document.getElementById("pname").value.trim();
+      if (!name) { say("Give the project a name first."); return; }
+      say("Creating…");
+      try {
+        const r = await api.newProject(name);
+        say("Created at " + r.path);
+      } catch (e) { say("Error: " + (e.message || e)); }
+    };
+  } else if (view === "mine") {
+    main.innerHTML = `<h2>My Projects</h2><div class="muted">Recent Glitch projects on this machine.</div>
+      <div class="cards"><div class="card"><h3>Open folder…</h3><p>Pick any project folder (must contain scene.json).</p><button id="pick">Browse…</button></div></div>
+      <div id="projlist"></div><div id="msg"></div>`;
+    document.getElementById("pick").onclick = async () => {
+      const p = await api.pickFolder();
+      if (p) { try { await api.openProject(p); } catch (e) { say("Error: " + (e.message || e)); } }
+    };
+    const list = document.getElementById("projlist");
+    try {
+      const recents = await api.recents();
+      if (recents.length === 0) list.innerHTML = `<div class="muted">No projects yet — create one.</div>`;
+      for (const r of recents) {
+        const d = document.createElement("div");
+        d.className = "proj";
+        d.innerHTML = `<span class="nm"></span><span class="pa"></span>`;
+        d.querySelector(".nm").textContent = r.name;
+        d.querySelector(".pa").textContent = r.path;
+        const open = document.createElement("button");
+        open.textContent = "Open";
+        open.onclick = () => api.openProject(r.path).catch((e) => say("Error: " + (e.message || e)));
+        const show = document.createElement("button");
+        show.textContent = "Folder";
+        show.onclick = () => api.showInFolder(r.path);
+        d.appendChild(open); d.appendChild(show);
+        list.appendChild(d);
+      }
+    } catch (e) { list.innerHTML = `<div class="muted">Cannot list projects.</div>`; }
+  } else if (view === "samples") {
+    main.innerHTML = `<h2>Sample Projects</h2><div class="muted">Playable samples that ship with the engine.</div>
+      <div class="cards">
+        <div class="card"><h3>Dusk Street: Night Shift</h3><p>Collect 5 supply crates and deliver them before dawn in a foggy cartoon street. WASD + mouse.</p><button class="go" id="play">Play</button></div>
+      </div><div id="msg"></div>`;
+    document.getElementById("play").onclick = () => api.openSample();
+  } else {
+    main.innerHTML = `<h2>Guide</h2>
+      <ol class="guide">
+        <li><b>Launcher</b> creates and opens projects. Each project is a folder with <code>project.json</code> + <code>scene.json</code>.</li>
+        <li><b>Editor:</b> open a project, then press <code>F9</code> (or add <code>?editor=1</code> to the URL) for hierarchy, inspector, add/delete, play/pause and scene save.</li>
+        <li><b>Save</b> writes <code>scene.json</code> back into the project folder.</li>
+        <li>Build games in TypeScript with the engine modules (<code>src/core, ecs, rendering, physics, scene, net, ui</code>); export with <code>npm run dist:exe</code>.</li>
+      </ol><div id="msg"></div>`;
+  }
+}
+
+boot();
+</script>
+</body>
+</html>

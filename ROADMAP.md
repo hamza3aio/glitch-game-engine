@@ -50,3 +50,13 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
 - `src/rendering/proctex.ts` — canvas-painted faces (eyes/mouths/blush/beards), shirts, brick, grass, asphalt, roof, water, wood
 - `src/scene/actor.ts` — 7-part cartoon rigs with walk-cycle `poseActor()`, hide/show for first-person
 - Demo rewritten: menu → loading → dusk-street vignette with a walkable cartoon player and two neighbors, full day in 2 minutes
+- Sample game: Dusk Street Night Shift (collect + deliver before dawn, win/lose, restart)
+
+## v2.0 — Launcher, projects, editor, sample game
+
+- `electron/` launcher window: New Project (scaffolded template), My Projects (recents), Sample Projects, Guide — preload IPC bridge, no accounts/servers
+- `project-template/` blank scene project (project.json + scene.json)
+- `src/editor/overlay.ts` is now a full editor: hierarchy, transform/color inspector, add box/static/trigger/actor, delete, play/pause, save to project folder (or download)
+- `src/scene/scene.ts` v2 format with actor rigs
+- `src/glitch.d.ts` typed bridge for web fallbacks
+- `src/rendering/proctex.ts` 256px textures + painted sign boards; `citykit` brick houses, sign textures, crosswalks
