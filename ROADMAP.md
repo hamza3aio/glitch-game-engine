@@ -60,3 +60,7 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
 - `src/scene/scene.ts` v2 format with actor rigs
 - `src/glitch.d.ts` typed bridge for web fallbacks
 - `src/rendering/proctex.ts` 256px textures + painted sign boards; `citykit` brick houses, sign textures, crosswalks
+
+## v2.1 — Contact shadows
+
+- `src/rendering/shadows.ts` — blob shadows that stick to actors, cars and crates; demo wires them everywhere
