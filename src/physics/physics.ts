@@ -12,6 +12,10 @@ export class Physics {
   private wasGrounded = new Map<Entity, boolean>();
 
   step(world: World, dt: number) {
+    // Drop per-entity state for destroyed bodies (no leak across sessions).
+    for (const e of this.wasGrounded.keys()) {
+      if (!world.isAlive(e)) this.wasGrounded.delete(e);
+    }
     // Integrate dynamic bodies
     for (const e of world.query("transform", "rigidbody", "collider") as Entity[]) {
       const t = world.get<Transform>(e, "transform")!;

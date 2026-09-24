@@ -35,9 +35,21 @@ export function saveScene(world: World): string {
 export function loadScene(world: World, json: string, addTex?: (id: string, img: TexImageSource) => void) {
   const data = JSON.parse(json) as { entities: SerializedEntity[] };
   for (const s of data.entities) {
-    if (s.actor && addTex) {
-      const rig = buildActor(world, addTex, s.actor);
-      poseActor(world, rig, s.pos[0], s.pos[1], s.pos[2], s.rotY, 0, false);
+    if (s.actor) {
+      if (addTex) {
+        const rig = buildActor(world, addTex, s.actor);
+        poseActor(world, rig, s.pos[0], s.pos[1], s.pos[2], s.rotY, 0, false);
+      } else {
+        // No texture source available: keep a gray placeholder box rather
+        // than silently dropping the entity.
+        const e = world.create();
+        world.add(e, "transform", {
+          position: new Vec3(...s.pos),
+          rotationY: s.rotY,
+          scale: new Vec3(...s.scale),
+        });
+        world.add(e, "mesh", { meshId: "cube", color: [0.5, 0.5, 0.55] });
+      }
       continue;
     }
     const e = world.create();

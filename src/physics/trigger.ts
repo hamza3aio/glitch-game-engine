@@ -17,6 +17,16 @@ export class TriggerSystem {
   private inside = new Map<Entity, Set<Entity>>();
 
   update(world: World) {
+    // Drop state for destroyed triggers/bodies (no leak across sessions).
+    for (const [tr, set] of this.inside) {
+      if (!world.isAlive(tr)) { this.inside.delete(tr); continue; }
+      for (const b of set) {
+        if (!world.isAlive(b)) {
+          set.delete(b);
+          this.onExit?.(tr, b);
+        }
+      }
+    }
     const triggers = world.query("transform", "trigger");
     const bodies = world.query("transform", "collider");
     for (const tr of triggers) {

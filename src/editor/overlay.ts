@@ -136,12 +136,6 @@ export class EditorOverlay {
     };
     const rig = buildActor(this.world, this.hooks.addTex, opts);
     poseActor(this.world, rig, 0, 0, 2, 0, 0, false);
-    const parts: Entity[] = [rig.head, rig.torso, rig.armL, rig.armR, rig.legL, rig.legR];
-    if (rig.hair) parts.push(rig.hair);
-    const hb = (rig as { hairBack?: Entity }).hairBack;
-    if (hb !== undefined) parts.push(hb);
-    for (const p of parts) this.world.add(p, "actorPart", true);
-    this.world.add(rig.head, "actor", { opts, parts });
     this.selected = rig.head;
   }
 

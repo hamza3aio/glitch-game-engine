@@ -11,6 +11,9 @@ npm install
 npm run dist:exe
 ```
 
+Tests: `npm test` (vitest, 27 tests: math, ECS, hierarchy, physics,
+triggers, raycast, character, scene, sky, input).
+
 Launch the app → project browser → **Sample Projects → Play**
 (Dusk Street: Night Shift), or **New Project** and press **F9** to edit.
 
@@ -18,7 +21,7 @@ Launch the app → project browser → **Sample Projects → Play**
 
 - `src/math/` — `Vec3`, `Mat4`
 - `src/core/` — `GameLoop` (fixed-step), `Time`, `Engine` (physics + triggers wired), `loading.ts` (staged loading screen)
-- `src/ecs/` — `World`, `Transform/Rigidbody/BoxCollider/MeshRef(+texture)/Spin/PlayerTag`
+- `src/ecs/` — `World`, `Transform/Rigidbody/BoxCollider/MeshRef(+texture)/Spin/PlayerTag`, `hierarchy.ts` (parent/child, world matrices, destroy trees)
 - `src/rendering/` — `Renderer` (textured, multi-light, distance fog), `Camera`, `GpuMesh` (+UVs), `texture.ts`, `material.ts`, `lights.ts`, `obj.ts`, `sky.ts` (dawn/day/dusk/night palette), `proctex.ts` (procedural canvas textures: faces, cloth, brick, grass, asphalt, roof, water, wood, signs), `shadows.ts` (contact blobs)
 - `src/physics/` — AABB `physics.ts`, `raycast.ts`, `trigger.ts`, `character.ts`
 - `src/input/` — `input.ts` + `actions.ts` (move/jump/reset)

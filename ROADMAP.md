@@ -64,3 +64,13 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
 ## v2.1 — Contact shadows
 
 - `src/rendering/shadows.ts` — blob shadows that stick to actors, cars and crates; demo wires them everywhere
+
+## v2.2 — Audit, hierarchy, tests (this change)
+
+- `ENGINE_ARCHITECTURE.md` — full Phase-0 audit: systems, gaps, debt, roadmap
+- `src/ecs/hierarchy.ts` — parent/child scene graph (world matrices, cycle
+  guard, cascade destroy). Renderer/physics integration explicitly scheduled next
+- `World.isAlive()` + prune physics `wasGrounded` / trigger `inside` on destroy
+- `buildActor` marks rig identity itself (head `actor`, parts `actorPart`);
+  `loadScene` falls back to a gray placeholder instead of dropping actors
+- `tests/` — 27 vitest tests, `npm test` green; demo build unaffected
