@@ -112,7 +112,7 @@ Done: audit (0), core loop/ECS (1 partial), forward renderer (2 partial),
 editor foundations (5 partial), scene JSON (6 partial), bank of samples (26 partial),
 win portable export (20 partial).
 Next 3 subsystems in priority order:
-  1. **Prefab assets + stable entity IDs + scene migration** (unblocks 5/6/24)
+  1. ~~Prefab assets + stable entity IDs + scene migration~~ DONE (v2.2)
   2. **Frustum culling + mesh instancing** (unblocks 2/18; needed as scenes grow)
   3. **Collision layers + sphere/capsule colliders** (unblocks 8)
 Then materials/PBR (4), input actions (16), audio samples (11), gizmos+undo (5/25).

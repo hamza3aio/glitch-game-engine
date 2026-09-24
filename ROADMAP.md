@@ -73,4 +73,21 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
 - `World.isAlive()` + prune physics `wasGrounded` / trigger `inside` on destroy
 - `buildActor` marks rig identity itself (head `actor`, parts `actorPart`);
   `loadScene` falls back to a gray placeholder instead of dropping actors
-- `tests/` — 27 vitest tests, `npm test` green; demo build unaffected
+## v2.2 — Prefabs, stable IDs, scene migration (this change)
+
+- `ENGINE_ARCHITECTURE.md` — Phase-0 audit from the prior commit
+- `src/ecs/hierarchy.ts` — parent/child scene graph (world matrices, cycle
+  guard, cascade destroy). Renderer/physics integration explicitly scheduled next
+- `World.isAlive()` + prune physics `wasGrounded` / trigger `inside` on destroy
+- `src/ecs/ids.ts` — opt-in persistent UIDs (`assignUid/getUid/findByUid`);
+  saves stay minimal + deterministic (only pre-assigned UIDs serialize)
+- `src/scene/prefabs.ts` — GUID prefab assets (`savePrefab/parsePrefab/
+  instantiatePrefab`); stamp semantics documented; colliding UIDs namespaced
+  so one prefab instantiates N times; malformed JSON rejected with reasons
+- `src/scene/scene.ts` — v3 format (full collider extents, UIDs, parent
+  links), `loadEntities` core shared by scenes + prefabs, version migration
+  (v1/v2 load; legacy boolean `static` defaults extents), malformed JSON
+  throws descriptive errors, actor fallback placeholder kept
+- `tests/identity.test.ts` — 7 tests: UID rules, prefab roundtrip + structure,
+  double-instantiation, extents preservation, v1 migration, parent linking
+- Renderer/physics hierarchy consumption explicitly still open (next)
