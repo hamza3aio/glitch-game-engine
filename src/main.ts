@@ -359,7 +359,7 @@ engine.addSystem((dt) => {
   stickBlob(world, blobA, ax, 0, 6);
   stickBlob(world, blobB, 6, 0, -6);
 
-  stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · ${clockText()}`;
+  stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} · ${clockText()}`;
 });
 
 const unlock = () => audio.resume();

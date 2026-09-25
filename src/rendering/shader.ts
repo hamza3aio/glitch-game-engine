@@ -85,3 +85,77 @@ export function createProgram(gl: WebGL2RenderingContext, vs: string, fs: string
   }
   return p;
 }
+
+// Instanced variant: same lighting/fog as FRAG_SRC, but model matrix, color
+// and (uvScale, shininess) arrive per instance. Kept as a separate pair (not
+// a #define maze) so the proven single-draw path is byte-for-byte untouched.
+export const INST_VERT_SRC = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNormal;
+layout(location=2) in vec2 aUV;
+layout(location=3) in mat4 aIModel;
+layout(location=7) in vec3 aIColor;
+layout(location=8) in vec2 aIParams;
+uniform mat4 uView;
+uniform mat4 uProj;
+out vec3 vNormal;
+out vec3 vWorldPos;
+out vec2 vUV;
+out vec3 vColor;
+out float vShininess;
+void main() {
+  vec4 w = aIModel * vec4(aPos, 1.0);
+  vWorldPos = w.xyz;
+  vNormal = mat3(aIModel) * aNormal;
+  vUV = aUV * aIParams.x;
+  vColor = aIColor;
+  vShininess = aIParams.y;
+  gl_Position = uProj * uView * w;
+}`;
+
+export const INST_FRAG_SRC = `#version 300 es
+precision mediump float;
+in vec3 vNormal;
+in vec3 vWorldPos;
+in vec2 vUV;
+in vec3 vColor;
+in float vShininess;
+uniform vec3 uLightDir;
+uniform float uLightIntensity;
+uniform vec3 uCamPos;
+uniform sampler2D uMap;
+uniform int uUseTexture;
+uniform int uPointCount;
+uniform vec3 uPointPos[4];
+uniform vec3 uPointColor[4];
+uniform vec3 uFogColor;
+uniform float uFogNear;
+uniform float uFogFar;
+out vec4 outColor;
+void main() {
+  vec3 n = normalize(vNormal);
+  vec3 l = normalize(-uLightDir);
+  float diff = max(dot(n, l), 0.0) * uLightIntensity;
+  vec3 viewDir = normalize(uCamPos - vWorldPos);
+  vec3 h = normalize(l + viewDir);
+  float spec = pow(max(dot(n, h), 0.0), vShininess) * 0.3;
+  vec3 ambient = vec3(0.25);
+  vec3 albedo = vColor;
+  if (uUseTexture == 1) {
+    albedo *= texture(uMap, vUV).rgb;
+  }
+  vec3 col = albedo * (ambient + diff * 0.9);
+  for (int i = 0; i < 4; i++) {
+    if (i >= uPointCount) break;
+    vec3 toL = uPointPos[i] - vWorldPos;
+    float d = length(toL);
+    float att = 1.0 / (1.0 + 0.25 * d * d);
+    float pd = max(dot(n, normalize(toL)), 0.0) * att;
+    col += albedo * uPointColor[i] * pd;
+  }
+  col += vec3(spec);
+  float fd = length(vWorldPos - uCamPos);
+  float f = smoothstep(uFogNear, uFogFar, fd);
+  col = mix(col, uFogColor, f);
+  outColor = vec4(col, 1.0);
+}`;

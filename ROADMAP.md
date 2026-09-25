@@ -65,7 +65,7 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
 
 - `src/rendering/shadows.ts` — blob shadows that stick to actors, cars and crates; demo wires them everywhere
 
-## v2.2 — Audit, hierarchy, tests (this change)
+## v2.2 — Audit, hierarchy, tests, prefabs, IDs, migration
 
 - `ENGINE_ARCHITECTURE.md` — full Phase-0 audit: systems, gaps, debt, roadmap
 - `src/ecs/hierarchy.ts` — parent/child scene graph (world matrices, cycle
@@ -73,12 +73,23 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
 - `World.isAlive()` + prune physics `wasGrounded` / trigger `inside` on destroy
 - `buildActor` marks rig identity itself (head `actor`, parts `actorPart`);
   `loadScene` falls back to a gray placeholder instead of dropping actors
-## v2.2 — Prefabs, stable IDs, scene migration (this change)
+## v2.3 — Frustum culling + GPU instancing (this change)
 
-- `ENGINE_ARCHITECTURE.md` — Phase-0 audit from the prior commit
-- `src/ecs/hierarchy.ts` — parent/child scene graph (world matrices, cycle
-  guard, cascade destroy). Renderer/physics integration explicitly scheduled next
-- `World.isAlive()` + prune physics `wasGrounded` / trigger `inside` on destroy
+- `src/rendering/frustum.ts` — 6-plane extraction from P*V, rotation-proof
+  sphere test (matches the yaw-only world)
+- `src/rendering/instancing.ts` — pure `groupInstances`/`composeInstance`
+  (matrix layout proven equal to the renderer chain in tests) + `InstancedMesh`
+  (`drawElementsInstanced`, divisor setup, dispose)
+- `INST_VERT/FRAG_SRC` kept as a separate pair: the proven single-draw
+  shaders are byte-for-byte untouched (unified variant system is Phase-2 work)
+- `Renderer.frame` culls, groups by mesh+texture, instances groups ≥ 4
+  (chunked at 2048), singles keep the exact old path; `renderer.stats`
+  exposes total/drawn/culled/instanced/regular (demo HUD shows it live)
+- `tests/render.test.ts` — 7 tests; GL path itself is compile-verified and
+  needs in-browser confirmation (no headless-GL in this environment)
+- Known cost: instanced VAOs duplicate vertex data per mesh (fine at our
+  mesh sizes); uniform re-upload on program switch is redundant but harmless
+
 - `src/ecs/ids.ts` — opt-in persistent UIDs (`assignUid/getUid/findByUid`);
   saves stay minimal + deterministic (only pre-assigned UIDs serialize)
 - `src/scene/prefabs.ts` — GUID prefab assets (`savePrefab/parsePrefab/

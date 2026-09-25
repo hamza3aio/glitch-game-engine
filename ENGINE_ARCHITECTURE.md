@@ -30,7 +30,7 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | ECS store | `ecs/world.ts`, `ecs/components.ts` | String-keyed component maps, AND queries. **Flat: no hierarchy** |
 | Hierarchy | `ecs/hierarchy.ts` (NEW, v2.2) | Parent/child, world matrices, cycle guard, cascade destroy |
 | Core loop | `core/{engine,loop,time,loading}.ts` | Fixed-step accumulator (1/60, 4-substep guard), FPS clock, staged DOM loading screen |
-| Rendering | `rendering/renderer.ts` + `shader.ts` | Single Blinn-Phong WebGL2 program, 1 dir + ≤4 point lights, textured, distance fog |
+| Rendering | `rendering/renderer.ts` + `shader.ts` | Single Blinn-Phong WebGL2 program, 1 dir + ≤4 point lights, textured, distance fog; v2.3 adds frustum culling + instanced batches + frame stats |
 | Meshes | `rendering/mesh.ts`, `obj.ts` | Cube/plane generators, minimal OBJ (`v/vn/f`), Uint16 indices |
 | Materials | `rendering/material.ts`, `MeshRef` | Legacy Phong fields (color/texture/shininess). **No PBR** |
 | Lights | `rendering/lights.ts` | Dir + point types (range unused by shader). No spots/shadows |
@@ -57,7 +57,7 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 
 P0 (blocks everything above): **hierarchy** (done v2.2), **tests** (done v2.2),
 prefab assets with GUIDs, stable entity IDs, scene migration.
-P1: PBR material workflow, shadow mapping, instancing + frustum culling,
+P1: PBR material workflow, shadow mapping, ~~instancing + frustum culling~~ (done v2.3),
 collision layers/masks, sphere/capsule colliders, input actions/rebinding,
 audio samples + 3D pan, asset DB with import settings, undo/redo + gizmos.
 P2: skeletal animation, particles, terrain, navmesh, scripting (Lua vs C#
@@ -113,7 +113,7 @@ editor foundations (5 partial), scene JSON (6 partial), bank of samples (26 part
 win portable export (20 partial).
 Next 3 subsystems in priority order:
   1. ~~Prefab assets + stable entity IDs + scene migration~~ DONE (v2.2)
-  2. **Frustum culling + mesh instancing** (unblocks 2/18; needed as scenes grow)
+  2. ~~Frustum culling + mesh instancing~~ DONE (v2.3; GL path needs browser confirmation)
   3. **Collision layers + sphere/capsule colliders** (unblocks 8)
 Then materials/PBR (4), input actions (16), audio samples (11), gizmos+undo (5/25).
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
