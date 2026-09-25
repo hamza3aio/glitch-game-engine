@@ -1,4 +1,4 @@
-# Glitch Game Engine v2.3
+# Glitch Game Engine v2.4
 
 Minimal 3D web game engine (raw WebGL2, zero runtime deps). Launches with a
 project browser (New / My / Sample projects), edits scenes in-app, and ships
@@ -11,9 +11,9 @@ npm install
 npm run dist:exe
 ```
 
-Tests: `npm test` (vitest, 41 tests: math, ECS, hierarchy, IDs, prefabs,
-migration, rendering/culling/instancing, physics, triggers, raycast,
-character, scene, sky, input).
+Tests: `npm test` (vitest, 48 tests: math, ECS, hierarchy, IDs, prefabs,
+migration, rendering/culling/instancing, physics, layers, shapes, triggers,
+raycast, character, scene, sky, input).
 
 Launch the app → project browser → **Sample Projects → Play**
 (Dusk Street: Night Shift), or **New Project** and press **F9** to edit.
@@ -22,9 +22,9 @@ Launch the app → project browser → **Sample Projects → Play**
 
 - `src/math/` — `Vec3`, `Mat4`
 - `src/core/` — `GameLoop` (fixed-step), `Time`, `Engine` (physics + triggers wired), `loading.ts` (staged loading screen)
-- `src/ecs/` — `World`, `Transform/Rigidbody/BoxCollider/MeshRef(+texture)/Spin/PlayerTag`, `hierarchy.ts` (parent/child, world matrices, destroy trees), `ids.ts` (opt-in stable UIDs)
+- `src/ecs/` — `World`, `Transform/Rigidbody/BoxCollider/SphereCollider/CapsuleCollider/MeshRef(+texture)/Spin/PlayerTag`, `hierarchy.ts` (parent/child, world matrices, destroy trees), `ids.ts` (opt-in stable UIDs)
 - `src/rendering/` — `Renderer` (textured, multi-light, distance fog, frustum culling, instancing, frame stats), `Camera`, `GpuMesh` (+UVs), `texture.ts`, `material.ts`, `lights.ts`, `obj.ts`, `sky.ts` (dawn/day/dusk/night palette), `proctex.ts` (procedural canvas textures: faces, cloth, brick, grass, asphalt, roof, water, wood, signs), `shadows.ts` (contact blobs), `frustum.ts` (planes + sphere test), `instancing.ts` (batching + instanced draws)
-- `src/physics/` — AABB `physics.ts`, `raycast.ts`, `trigger.ts`, `character.ts`
+- `src/physics/` — AABB `physics.ts` (box/sphere/capsule, layers), `layers.ts` (32-bit layer/mask filtering), `raycast.ts` (mask/ignore/normals/spheres), `trigger.ts`, `character.ts`
 - `src/input/` — `input.ts` + `actions.ts` (move/jump/reset)
 - `src/audio/` — `AudioEngine` (blips, positional, music loop)
 - `src/scene/` — `prefab.ts` (box/platform/pickup/trigger), `scene.ts` (v3 save/load JSON + migration), `prefabs.ts` (GUID prefab assets: save/parse/instantiate), `citykit.ts` (procedural street props: houses, pines, poles + wires, shops, gas stations, cars, fences, piers, scaffolds, mountains), `actor.ts` (cartoonish articulated characters: painted faces, walk-cycle posing, mesh hide/show)

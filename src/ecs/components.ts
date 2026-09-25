@@ -26,6 +26,17 @@ export interface BoxCollider {
   isStatic: boolean;
 }
 
+export interface SphereCollider {
+  radius: number; // local radius (scaled by max entity scale axis)
+  isStatic: boolean;
+}
+
+export interface CapsuleCollider {
+  radius: number; // local radius (scaled like a sphere)
+  height: number; // total height INCLUDING caps, Y axis (scaled by scale.y)
+  isStatic: boolean;
+}
+
 export interface MeshRef {
   meshId: string;
   color: [number, number, number];

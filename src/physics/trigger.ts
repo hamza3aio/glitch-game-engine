@@ -28,7 +28,12 @@ export class TriggerSystem {
       }
     }
     const triggers = world.query("transform", "trigger");
-    const bodies = world.query("transform", "collider");
+    // Bodies = any collider shape (center-tested; see module note).
+    const bodySet = new Set<Entity>();
+    for (const name of ["collider", "sphere", "capsule"]) {
+      for (const b of world.query("transform", name)) bodySet.add(b);
+    }
+    const bodies = [...bodySet];
     for (const tr of triggers) {
       const tt = world.get<Transform>(tr, "transform")!;
       const tv = world.get<TriggerVolume>(tr, "trigger")! as TriggerVolume;

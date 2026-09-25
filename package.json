@@ -1,6 +1,6 @@
 {
   "name": "glitch-game-engine",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "type": "module",
   "description": "Glitch Game Engine: minimal 3D web game engine with loop, WebGL2 rendering, ECS, physics, input, audio.",

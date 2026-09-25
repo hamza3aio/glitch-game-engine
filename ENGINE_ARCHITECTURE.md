@@ -37,7 +37,7 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Textures | `rendering/texture.ts`, `proctex.ts` | RGBA8 upload + procedural canvas painter (faces, cloth, brick, grass, …). DOM-only creation |
 | Sky | `rendering/sky.ts` | Dawn/day/dusk/night palette lerp (colors only, no dome) |
 | Shadows | `rendering/shadows.ts` | Blob quads only. **No shadow maps** |
-| Physics | `physics/physics.ts` | Kinematic AABB vs static + ground plane, smallest-axis resolve. Boxes only, no layers, no dynamics-vs-dynamics |
+| Physics | `physics/physics.ts` | Kinematic box/sphere/capsule vs static + ground plane, smallest-axis + normal-removal resolve, 32-bit layer/mask filtering. No dynamics-vs-dynamics |
 | Triggers | `physics/trigger.ts` | Center-in-box enter/exit. No extents test, no layers |
 | Raycast | `physics/raycast.ts` | Slab ray vs AABB, closest hit. No mask/normal |
 | Character | `physics/character.ts` | Arcade velocity lerp + jump gate. No coyote/buffer/slopes |
@@ -114,7 +114,7 @@ win portable export (20 partial).
 Next 3 subsystems in priority order:
   1. ~~Prefab assets + stable entity IDs + scene migration~~ DONE (v2.2)
   2. ~~Frustum culling + mesh instancing~~ DONE (v2.3; GL path needs browser confirmation)
-  3. **Collision layers + sphere/capsule colliders** (unblocks 8)
-Then materials/PBR (4), input actions (16), audio samples (11), gizmos+undo (5/25).
+  3. ~~Collision layers + sphere/capsule colliders~~ DONE (v2.4)
+Then materials/PBR (Phase 4), input actions (Phase 16), audio samples (Phase 11), gizmos+undo (Phases 5/25).
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
 navmesh, particles GPU, C#/Lua scripting, packages, consoles/mobile.

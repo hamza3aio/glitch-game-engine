@@ -90,6 +90,22 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
 - Known cost: instanced VAOs duplicate vertex data per mesh (fine at our
   mesh sizes); uniform re-upload on program switch is redundant but harmless
 
+## v2.4 — Collision layers + sphere/capsule colliders (this change)
+
+- `src/physics/layers.ts` — 32-bit layer/mask filtering (both-sides rule);
+  missing components mean layer 0 + all-bits, so old worlds behave identically
+- `SphereCollider` / `CapsuleCollider` (Y-axis, height includes caps):
+  exact sphere-sphere/sphere-box/sphere-ground, segment-based capsule
+  resolves (capsule-capsule exact for parallel segments; capsule-box is a
+  documented 3-sample approximation), ground impact codes preserved
+- `raycast.ts` — `{mask, ignore}` options, sphere hits, face normals;
+  `rayVsBox` signature unchanged
+- Triggers now see sphere/capsule bodies too (center test, as before)
+- Box-box resolve path byte-for-byte preserved; rotation still ignored
+- `tests/physics.test.ts` +7: layer pass-through, one-way masks, sphere/
+  capsule resting, wall push-out, raycast mask/ignore/normals
+- Open: editor physics UI, mesh colliders, CCD, dynamics-vs-dynamics
+
 - `src/ecs/ids.ts` — opt-in persistent UIDs (`assignUid/getUid/findByUid`);
   saves stay minimal + deterministic (only pre-assigned UIDs serialize)
 - `src/scene/prefabs.ts` — GUID prefab assets (`savePrefab/parsePrefab/
