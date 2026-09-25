@@ -73,6 +73,18 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
 - `World.isAlive()` + prune physics `wasGrounded` / trigger `inside` on destroy
 - `buildActor` marks rig identity itself (head `actor`, parts `actorPart`);
   `loadScene` falls back to a gray placeholder instead of dropping actors
+- `src/ecs/ids.ts` — opt-in persistent UIDs (`assignUid/getUid/findByUid`);
+  saves stay minimal + deterministic (only pre-assigned UIDs serialize)
+- `src/scene/prefabs.ts` — GUID prefab assets (`savePrefab/parsePrefab/
+  instantiatePrefab`); stamp semantics documented; colliding UIDs namespaced
+  so one prefab instantiates N times; malformed JSON rejected with reasons
+- `src/scene/scene.ts` — v3 format (full collider extents, UIDs, parent
+  links), `loadEntities` core shared by scenes + prefabs, version migration
+  (v1/v2 load; legacy boolean `static` defaults extents), malformed JSON
+  throws descriptive errors, actor fallback placeholder kept
+- `tests/identity.test.ts` — 7 tests: UID rules, prefab roundtrip + structure,
+  double-instantiation, extents preservation, v1 migration, parent linking
+- Renderer/physics hierarchy consumption explicitly still open (next)
 ## v2.3 — Frustum culling + GPU instancing (this change)
 
 - `src/rendering/frustum.ts` — 6-plane extraction from P*V, rotation-proof
@@ -138,15 +150,20 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
   Set-vs-method `pressed` clash between `Input` and the first `RawState` draft
 - Open: touch joysticks/game-side gestures, rumble, multi-pad arbitration
 
-- `src/ecs/ids.ts` — opt-in persistent UIDs (`assignUid/getUid/findByUid`);
-  saves stay minimal + deterministic (only pre-assigned UIDs serialize)
-- `src/scene/prefabs.ts` — GUID prefab assets (`savePrefab/parsePrefab/
-  instantiatePrefab`); stamp semantics documented; colliding UIDs namespaced
-  so one prefab instantiates N times; malformed JSON rejected with reasons
-- `src/scene/scene.ts` — v3 format (full collider extents, UIDs, parent
-  links), `loadEntities` core shared by scenes + prefabs, version migration
-  (v1/v2 load; legacy boolean `static` defaults extents), malformed JSON
-  throws descriptive errors, actor fallback placeholder kept
-- `tests/identity.test.ts` — 7 tests: UID rules, prefab roundtrip + structure,
-  double-instantiation, extents preservation, v1 migration, parent linking
-- Renderer/physics hierarchy consumption explicitly still open (next)
+## v2.7 — Audio samples (this change)
+
+- `src/audio/volume.ts` — dB/gain conversion, inverse-distance attenuation
+  (matches the panner model), gain clamping
+- `src/audio/sfx.ts` — procedural sample buffers (thump/noise/sweep/arp):
+  pure renderers with injectable rand, envelope-shaped, peak-limited
+- `src/audio/audio.ts` — clip cache + async decode, `playTone`/`playClip`
+  with mixer groups + HRTF panners + listener pose, loop layers, volume
+  persistence; legacy `blip/positional/jump/land/pickup/trigger/music`
+  behavior preserved
+- `tests/audio.test.ts` — 8 tests
+- `src/audio/sample.ts` — WAV codec (PCM 8/16/24/32 int + float32, any channels, chunk-skipping) + writer + mixdown; fixed real header-offset bug found by tests
+- `src/audio/synth.ts` — procedural notes (ADSR-ish, peak-normalized) + pure step-sequencer timing + rms/peak helpers
+- `src/audio/audio.ts` — `playSample` bridge (WeakMap buffer cache) + lookahead `playSequence`/`stopSequence` music player
+- `tests/sample.test.ts` — 9 tests: decode values, stereo roundtrip, malformed files, mixdown/clamp/rates, note shape, sequence timing
+- Open: true streaming (needs hosted files, future asset work), doppler
+  velocities (plumbed, browser-dependent)

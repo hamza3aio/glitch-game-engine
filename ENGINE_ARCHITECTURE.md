@@ -42,7 +42,7 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Raycast | `physics/raycast.ts` | Slab ray vs AABB, closest hit. No mask/normal |
 | Character | `physics/character.ts` | Arcade velocity lerp + jump gate. No coyote/buffer/slopes |
 | Input | `input/{input,actions}.ts` | Keyboard set + pointer drag + WASD/Space/R mapping. No pressed/released edges, remap, touch |
-| Audio | `audio/audio.ts` | WebAudio synth blips + drone music. No samples/spatial pan |
+| Audio | `audio/*.ts` | Clips + mixer groups + HRTF positional + listener + loops + sequencer + volume persist; pure WAV codec, procedural notes/SFX, dB math |
 | Scene | `scene/scene.ts` | JSON `{version, entities[]}` transforms+mesh+static+actors. **Writes v2, never migrates; lossy colliders** |
 | Prefabs/kit | `scene/{prefab,citykit}.ts` | Spawn helpers + box-built street props. No GUIDs/instancing |
 | Actors | `scene/actor.ts` | 7-box cartoon rigs, painted faces, sine walk pose. No skeleton |
@@ -117,6 +117,7 @@ Next 3 subsystems in priority order:
   3. ~~Collision layers + sphere/capsule colliders~~ DONE (v2.4)
   4. ~~PBR materials~~ DONE (v2.5; GL path needs browser confirmation)
   5. ~~Input actions~~ DONE (v2.6; live pads/sticks need browser confirmation)
-Then audio samples (Phase 11), gizmos+undo (Phases 5/25).
+  6. ~~Audio samples~~ DONE (v2.7; WebAudio graph needs browser confirmation)
+Then gizmos+undo (Phases 5/25).
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
 navmesh, particles GPU, C#/Lua scripting, packages, consoles/mobile.
