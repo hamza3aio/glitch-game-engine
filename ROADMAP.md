@@ -194,3 +194,17 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
   HUD alive counter
 - `tests/fx.test.ts` — 10 tests; found a real bug (pool never filled)
 - Open: trails, sub-emitters, GPU particles, collision beyond ground
+
+## v2.10 — Terrain (this change)
+
+- `src/world/terrain.ts` — heightfields (plain-array, JSON-safe), sculpt/
+  smooth/noise/flatten brushes, bilinear sampling, slope, grid meshes with
+  computed normals + stride LOD, deterministic slope scatter, splat painting
+  (pure data + one canvas call)
+- `TERRAIN_FRAG_SRC` — splat-mapped matte surfacing (3 details, fog, points);
+  renderer terrain path; `MeshRef.terrain`; `TerrainCollider` component with
+  real heightfield grounding in physics (all shapes, layers honored)
+- `tests/terrain.test.ts` — 17 tests incl. winding orientation, LOD counts,
+  hilltop resting, patch bounds, JSON round-trip
+- Demo hill: sculpted + noise, slope-painted rock, walkable, pine-dotted
+- Open: chunked streaming LOD, editor sculpt tools, terrain texture import

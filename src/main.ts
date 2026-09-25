@@ -12,6 +12,10 @@ import { ParticleSystem, type EmitterDef } from "./fx/particles.js";
 import { loadScene } from "./scene/scene.js";
 import { EditorOverlay } from "./editor/overlay.js";
 import { car, crosswalk, dashes, house, pine, pole, shop, sidewalk, wireRun } from "./scene/citykit.js";
+import {
+  addNoise, createHeightmap, createSplat, extent, mulberry32, paintWhere,
+  raise, sampleHeight, scatterSpots, slopeAt, smooth, splatToCanvas, terrainMesh,
+} from "./world/terrain.js";
 import { MainMenu } from "./ui/menu.js";
 import { makeRigidbody, makeTransform, type MeshRef, type Rigidbody, type Transform } from "./ecs/components.js";
 import type { Entity } from "./ecs/world.js";
@@ -223,6 +227,28 @@ async function build() {
   pine(world, -24, 10, 1.2);
   pine(world, -6, 12, 1.0);
   pine(world, 12, 11, 1.3);
+  // terrain hill showcase: sculpted, slope-painted, walkable, pine-dotted
+  {
+    const hill = createHeightmap(13, 2);
+    raise(hill, 0, 0, 11, 4);
+    addNoise(hill, 5, 1.1, 9);
+    smooth(hill);
+    const HX = -34, HZ = 24;
+    const splat = createSplat(64);
+    paintWhere(splat, extent(hill), 1, (x, z) => slopeAt(hill, x, z) > 0.5);
+    tex("hill-splat", splatToCanvas(splat));
+    renderer.registerMesh("hill", terrainMesh(hill, 1, 1));
+    const he = world.create();
+    world.add(he, "transform", makeTransform(HX, 0, HZ));
+    world.add<MeshRef>(he, "mesh", {
+      meshId: "hill", color: [1, 1, 1],
+      terrain: { splat: "hill-splat", detailA: "grass", detailB: "brick", detailC: "asphalt", detailScale: 5 },
+    });
+    world.add(he, "terrain", { size: hill.size, cell: hill.cell, heights: [...hill.heights] });
+    for (const s of scatterSpots(hill, mulberry32(21), 0, 0, 9, 7, 0.45)) {
+      pine(world, HX + s.x, HZ + s.z, 0.9, sampleHeight(hill, s.x, s.z) - 0.2);
+    }
+  }
   car(world, 8, -1.5, Math.PI / 2, [0.15, 0.35, 0.6]);
   stickBlob(world, makeBlob(world, 3.2), 8, 0, -1.5);
   pole(world, -20, 4.5);

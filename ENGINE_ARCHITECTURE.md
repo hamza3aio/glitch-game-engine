@@ -120,6 +120,7 @@ Next 3 subsystems in priority order:
   6. ~~Audio samples~~ DONE (v2.7; WebAudio graph needs browser confirmation)
   7. ~~Gizmos + undo~~ DONE (v2.8; drag interaction needs browser confirmation)
   8. ~~Particles~~ DONE (v2.9; visual look needs browser confirmation)
-Then terrain (Phase 13), nav/AI (Phase 14).
+  9. ~~Terrain~~ DONE (v2.10; GL path needs browser confirmation)
+Then nav/AI (Phase 14).
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
 navmesh, particles GPU, C#/Lua scripting, packages, consoles/mobile.

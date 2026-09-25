@@ -1,4 +1,5 @@
 import { Vec3 } from "../math/vec3.js";
+import type { TerrainMaterial } from "../world/terrain.js";
 
 export interface Transform {
   position: Vec3;
@@ -37,6 +38,12 @@ export interface CapsuleCollider {
   isStatic: boolean;
 }
 
+export interface TerrainCollider {
+  size: number; // verts per side (matches Heightmap.size)
+  cell: number; // world units between verts
+  heights: number[]; // row-major, length size*size, LOCAL to the entity
+}
+
 export interface MeshRef {
   meshId: string;
   color: [number, number, number];
@@ -44,6 +51,7 @@ export interface MeshRef {
   uvScale?: number;
   shininess?: number;
   materialId?: string; // PBR material id; unknown ids fall back to legacy shading
+  terrain?: TerrainMaterial; // splat-mapped terrain (takes its own draw path)
 }
 
 export interface Spin {

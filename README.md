@@ -1,4 +1,4 @@
-# Glitch Game Engine v2.9
+# Glitch Game Engine v2.10
 
 Minimal 3D web game engine (raw WebGL2, zero runtime deps). Launches with a
 project browser (New / My / Sample projects), edits scenes in-app, and ships
@@ -11,10 +11,10 @@ npm install
 npm run dist:exe
 ```
 
-Tests: `npm test` (vitest, 116 tests: math, ECS, hierarchy, IDs, prefabs,
+Tests: `npm test` (vitest, 133 tests: math, ECS, hierarchy, IDs, prefabs,
 migration, rendering/culling/instancing, materials/PBR, physics, layers,
 shapes, triggers, raycast, character, scene, sky, input/actions, audio,
-samples/synth, particles, editor/history/gizmo/DOM).
+samples/synth, particles, terrain, editor/history/gizmo/DOM).
 
 Launch the app → project browser → **Sample Projects → Play**
 (Dusk Street: Night Shift), or **New Project** and press **F9** to edit.
@@ -28,6 +28,7 @@ Launch the app → project browser → **Sample Projects → Play**
 - `src/physics/` — AABB `physics.ts` (box/sphere/capsule, layers), `layers.ts` (32-bit layer/mask filtering), `raycast.ts` (mask/ignore/normals/spheres), `trigger.ts`, `character.ts`
 - `src/input/` — `input.ts` (keys + pressed/released edges, wheel, touch, pointer lock, detach) + `actionmap.ts` (named buttons/axes/vectors, contexts, gamepad, rebind, JSON) + legacy `actions.ts` wrapper (unchanged API)
 - `src/audio/` — `audio.ts` (clips, mixer groups, HRTF positional, listener, loop layers, volume persistence, `playSample` bridge, lookahead step sequencer), `sample.ts` (WAV codec + writer + mixdown), `synth.ts` (procedural notes + sequence timing), `sfx.ts` (procedural thump/noise/sweep/arp buffers), `volume.ts` (dB/gain/attenuation math)
+- `src/world/` — `terrain.ts` (heightfields, sculpt/smooth/noise, bilinear sampling, slope, grid meshes + stride LOD, slope scatter, splat painting)
 - `src/scene/` — `prefab.ts` (box/platform/pickup/trigger), `scene.ts` (v3 save/load JSON + migration), `prefabs.ts` (GUID prefab assets: save/parse/instantiate), `citykit.ts` (procedural street props: houses, pines, poles + wires, shops, gas stations, cars, fences, piers, scaffolds, mountains), `actor.ts` (cartoonish articulated characters: painted faces, walk-cycle posing, mesh hide/show)
 - `src/assets/` — `loader.ts` (texture/OBJ/JSON with cache)
 - `src/editor/` — `overlay.ts` (hierarchy + inspector + save/load, undo/redo, move gizmo, click-pick, `?editor=1`), `history.ts` (commands), `gizmo.ts` (projection/picking/drag math)

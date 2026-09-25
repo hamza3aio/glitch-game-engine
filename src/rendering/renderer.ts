@@ -1,12 +1,13 @@
 import { Mat4 } from "../math/mat4.js";
 import { Vec3 } from "../math/vec3.js";
-import { FRAG_SRC, VERT_SRC, INST_FRAG_SRC, INST_VERT_SRC, PBR_FRAG_SRC, createProgram } from "./shader.js";
+import { FRAG_SRC, VERT_SRC, INST_FRAG_SRC, INST_VERT_SRC, PBR_FRAG_SRC, TERRAIN_FRAG_SRC, createProgram } from "./shader.js";
 import { GpuMesh, boundsRadius, cubeData, planeData, type MeshData } from "./mesh.js";
 import { Texture2D } from "./texture.js";
 import { MaterialDB, resolveMaterial, type PBRMaterial } from "./materials.js";
 import { frustumFromVP, testSphere, type Plane } from "./frustum.js";
 import { InstancedMesh, FLOATS_PER_INSTANCE, MAX_BATCH, MIN_INSTANCES, composeInstance, groupInstances } from "./instancing.js";
 import type { PointLight } from "./lights.js";
+import type { TerrainMaterial } from "../world/terrain.js";
 import type { Entity } from "../ecs/world.js";
 import { World } from "../ecs/world.js";
 import type { MeshRef, Transform } from "../ecs/components.js";
@@ -31,6 +32,7 @@ export class Renderer {
   private program: WebGLProgram;
   private instProgram: WebGLProgram;
   private pbrProgram: WebGLProgram;
+  private terrainProgram: WebGLProgram;
   private meshes = new Map<string, GpuMesh>();
   private meshData = new Map<string, MeshData>();
   private meshBounds = new Map<string, number>();
@@ -53,6 +55,7 @@ export class Renderer {
   private loc: Record<string, WebGLUniformLocation | null> = {};
   private iloc: Record<string, WebGLUniformLocation | null> = {};
   private ploc: Record<string, WebGLUniformLocation | null> = {};
+  private tloc: Record<string, WebGLUniformLocation | null> = {};
 
   constructor(private canvas: HTMLCanvasElement) {
     const gl = canvas.getContext("webgl2");
@@ -92,6 +95,16 @@ export class Renderer {
       this.ploc[name] = gl.getUniformLocation(this.pbrProgram, name);
     }
     this.materials.presets();
+    this.terrainProgram = createProgram(gl, VERT_SRC, TERRAIN_FRAG_SRC);
+    for (const name of [
+      "uModel", "uView", "uProj", "uUVScale", "uCamPos",
+      "uSplatMap", "uDetailA", "uDetailB", "uDetailC", "uDetailTiling",
+      "uLightDir", "uLightIntensity",
+      "uPointCount", "uPointPos", "uPointColor",
+      "uFogColor", "uFogNear", "uFogFar",
+    ]) {
+      this.tloc[name] = gl.getUniformLocation(this.terrainProgram, name);
+    }
     this.registerMesh("cube", cubeData(1));
     this.registerMesh("ground", planeData(140));
     this.textures.set("white", Texture2D.white(gl));
@@ -209,6 +222,31 @@ export class Renderer {
     this.stats.drawn++;
   }
 
+  private drawTerrain(t: Transform, m: MeshRef, tm: TerrainMaterial, view: Mat4, proj: Mat4) {
+    const gl = this.gl;
+    const gpu = this.meshes.get(m.meshId)!;
+    gl.useProgram(this.terrainProgram);
+    this.uploadShared(this.tloc, view, proj);
+    const L = this.tloc;
+    const model = new Mat4().translate(t.position).rotateY(t.rotationY).scale(t.scale);
+    gl.uniformMatrix4fv(L.uModel, false, model.elements);
+    gl.uniform1f(L.uUVScale, 1);
+    gl.uniform1f(L.uDetailTiling, tm.detailScale);
+    const bind = (loc: WebGLUniformLocation | null, unit: number, id: string) => {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      const tex = this.textures.get(id) || this.textures.get("white")!;
+      tex.bind(unit);
+      gl.uniform1i(loc, unit);
+    };
+    bind(L.uSplatMap, 0, tm.splat);
+    bind(L.uDetailA, 1, tm.detailA);
+    bind(L.uDetailB, 2, tm.detailB);
+    bind(L.uDetailC, 3, tm.detailC);
+    gpu.draw();
+    this.stats.regularDraws++;
+    this.stats.drawn++;
+  }
+
   private drawSingle(t: Transform, m: MeshRef) {
     const gl = this.gl;
     const gpu = this.meshes.get(m.meshId)!;
@@ -279,9 +317,10 @@ export class Renderer {
     const planes: Plane[] = frustumFromVP(proj.clone().multiply(view));
 
     // Gather visible entities (bounding sphere vs frustum).
-    // PBR-material entities bypass batching (own program, own maps).
+    // PBR-material and terrain entities bypass batching (own programs).
     const visible: (VisibleItem & { meshId: string; textureId?: string })[] = [];
     const pbrItems: { t: Transform; m: MeshRef; mat: PBRMaterial }[] = [];
+    const terrainItems: { t: Transform; m: MeshRef; tm: TerrainMaterial }[] = [];
     for (const e of world.query("transform", "mesh") as Entity[]) {
       this.stats.total++;
       const t = world.get<Transform>(e, "transform")!;
@@ -291,6 +330,10 @@ export class Renderer {
       const r = bound * Math.max(t.scale.x, t.scale.y, t.scale.z);
       if (!testSphere(planes, t.position.x, t.position.y, t.position.z, r)) {
         this.stats.culled++;
+        continue;
+      }
+      if (m.terrain) {
+        terrainItems.push({ t, m, tm: m.terrain });
         continue;
       }
       const mat = resolveMaterial(m, this.materials);
@@ -311,5 +354,6 @@ export class Renderer {
       }
     }
     for (const { t, m, mat } of pbrItems) this.drawPBR(t, m, mat, view, proj);
+    for (const { t, m, tm } of terrainItems) this.drawTerrain(t, m, tm, view, proj);
   }
 }

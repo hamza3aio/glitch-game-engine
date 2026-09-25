@@ -273,3 +273,53 @@ void main() {
   col = mix(col, uFogColor, f);
   outColor = vec4(col, alpha);
 }`;
+
+// Terrain fragment: splat-mapped matte surfacing (no specular — earth doesn't
+// shine). Shares VERT_SRC varyings. Detail textures tile by vUV; the splat
+// mask is sampled unscaled (0..1 across the patch).
+export const TERRAIN_FRAG_SRC = `#version 300 es
+precision mediump float;
+in vec3 vNormal;
+in vec3 vWorldPos;
+in vec2 vUV;
+uniform sampler2D uSplatMap;
+uniform sampler2D uDetailA;
+uniform sampler2D uDetailB;
+uniform sampler2D uDetailC;
+uniform float uDetailTiling;
+uniform vec3 uLightDir;
+uniform float uLightIntensity;
+uniform vec3 uCamPos;
+uniform int uPointCount;
+uniform vec3 uPointPos[4];
+uniform vec3 uPointColor[4];
+uniform vec3 uFogColor;
+uniform float uFogNear;
+uniform float uFogFar;
+out vec4 outColor;
+void main() {
+  vec3 n = normalize(vNormal);
+  vec3 weights = texture(uSplatMap, vUV).rgb;
+  float wsum = weights.r + weights.g + weights.b + 1e-4;
+  weights /= wsum;
+  vec3 albedo =
+    texture(uDetailA, vUV * uDetailTiling).rgb * weights.r +
+    texture(uDetailB, vUV * uDetailTiling).rgb * weights.g +
+    texture(uDetailC, vUV * uDetailTiling).rgb * weights.b;
+  vec3 l = normalize(-uLightDir);
+  float diff = max(dot(n, l), 0.0) * uLightIntensity;
+  vec3 ambient = vec3(0.3);
+  vec3 col = albedo * (ambient + diff * 0.9);
+  for (int i = 0; i < 4; i++) {
+    if (i >= uPointCount) break;
+    vec3 toL = uPointPos[i] - vWorldPos;
+    float d = length(toL);
+    float att = 1.0 / (1.0 + 0.25 * d * d);
+    float pd = max(dot(n, normalize(toL)), 0.0) * att;
+    col += albedo * uPointColor[i] * pd;
+  }
+  float fd = length(vWorldPos - uCamPos);
+  float f = smoothstep(uFogNear, uFogFar, fd);
+  col = mix(col, uFogColor, f);
+  outColor = vec4(col, 1.0);
+}`;

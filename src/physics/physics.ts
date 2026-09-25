@@ -2,6 +2,8 @@ import { World, type Entity } from "../ecs/world.js";
 import type { BoxCollider, CapsuleCollider, Rigidbody, SphereCollider, Transform } from "../ecs/components.js";
 import { Vec3 } from "../math/vec3.js";
 import { layersCollide } from "./layers.js";
+import { sampleHeight } from "../world/terrain.js";
+import type { TerrainCollider } from "../ecs/components.js";
 
 export interface CollisionEvent {
   a: Entity;
@@ -102,6 +104,9 @@ export class Physics {
           this.onCollide?.({ a: d, b: s });
         }
       }
+      // Heightfield terrains (support only: snap + grounded, no impact events —
+      // those stay exclusive to the y=0 plane so landing semantics don't change)
+      this.resolveTerrains(world, d, dt2, ds, rb);
       // Ground plane y=0 (top surface)
       if (this.resolveGround(dt2, ds, rb)) {
         this.onCollide?.({ a: d, b: -1 as unknown as Entity });
@@ -109,6 +114,26 @@ export class Physics {
       const was = this.wasGrounded.get(d) ?? false;
       if (!was && rb.grounded) this.onCollide?.({ a: d, b: -2 as unknown as Entity });
       this.wasGrounded.set(d, rb.grounded);
+    }
+  }
+
+  private resolveTerrains(world: World, d: Entity, t: Transform, s: Shape, rb: Rigidbody): void {
+    const bottomOffset = s.kind === "box" ? s.half.y : s.kind === "sphere" ? s.r : s.halfH + s.r;
+    for (const te of world.query("transform", "terrain")) {
+      if (te === d) continue;
+      if (!layersCollide(world, d, te)) continue;
+      const tt = world.get<Transform>(te, "transform")!;
+      const tc = world.get<TerrainCollider>(te, "terrain")!;
+      const ext = ((tc.size - 1) * tc.cell) / 2;
+      const lx = t.position.x - tt.position.x;
+      const lz = t.position.z - tt.position.z;
+      if (Math.abs(lx) > ext || Math.abs(lz) > ext) continue;
+      const h = sampleHeight({ size: tc.size, cell: tc.cell, heights: tc.heights }, lx, lz) + tt.position.y;
+      if (t.position.y - bottomOffset <= h) {
+        t.position.y = h + bottomOffset;
+        if (rb.velocity.y < 0) rb.velocity.y = 0;
+        rb.grounded = true;
+      }
     }
   }
 
