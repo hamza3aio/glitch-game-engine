@@ -43,4 +43,29 @@ describe("Mat4", () => {
     expect(m.elements[12]).toBeCloseTo(10);
     expect(m.elements[0]).toBeCloseTo(2);
   });
+
+  it("inverts composed matrices back to identity", () => {
+    const m = Mat4.compose(new Vec3(5, -2, 7), 0.7, new Vec3(2, 3, 4));
+    const inv = m.invert();
+    expect(inv).not.toBeNull();
+    const id = Mat4.multiplied(m, inv!);
+    const want = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    for (let i = 0; i < 16; i++) expect(id.elements[i]).toBeCloseTo(want[i], 4);
+  });
+
+  it("inverts lookAt and perspective round-trips", () => {
+    const v = Mat4.lookAt(new Vec3(1, 2, 3), new Vec3(0, 0, 0), Vec3.up());
+    const back = v.invert()!.clone().multiply(v);
+    for (let i = 0; i < 16; i++) {
+      expect(back.elements[i]).toBeCloseTo(i % 5 === 0 ? 1 : 0, 4);
+    }
+  });
+
+  it("returns null for singular matrices", () => {
+    const m = new Mat4();
+    m.elements[0] = 0; m.elements[5] = 0; m.elements[10] = 0; m.elements[15] = 0;
+    expect(m.invert()).toBeNull();
+    const zeroScale = new Mat4().scale(new Vec3(0, 1, 1));
+    expect(zeroScale.invert()).toBeNull();
+  });
 });

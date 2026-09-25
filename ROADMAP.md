@@ -167,3 +167,19 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
 - `tests/sample.test.ts` — 9 tests: decode values, stereo roundtrip, malformed files, mixdown/clamp/rates, note shape, sequence timing
 - Open: true streaming (needs hosted files, future asset work), doppler
   velocities (plumbed, browser-dependent)
+
+## v2.8 — Gizmos + undo (this change)
+
+- `src/math/mat4.ts` — `invert()` via Gauss-Jordan with partial pivoting
+  (replaced a mistranscribed cofactor formula the tests disproved)
+- `src/editor/history.ts` — command-pattern undo/redo (cap, truncation, labels)
+- `src/editor/gizmo.ts` — world→screen, unproject/screen-ray, ray-axis drag
+  math, segment distance, snapping (all pure + tested)
+- `src/editor/overlay.ts` — undo/redo buttons + Ctrl+Z/Y, command-based
+  transform/color/material/delete/add, SVG move gizmo with snap toggle,
+  click-to-select via raycast picking
+- Demo wires the viewport hook; `tests/editor.test.ts` (11) +
+  `tests/editor-dom.test.ts` (7, real jsdom) + 3 invert tests
+- Found by tests: broken 4-arg/3-arg inspector wiring, stale button labels,
+  cofactor inverse wrong on rotations
+- Open: rotate/scale gizmos, multi-select, duplicate, parenting UI

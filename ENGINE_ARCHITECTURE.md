@@ -118,6 +118,7 @@ Next 3 subsystems in priority order:
   4. ~~PBR materials~~ DONE (v2.5; GL path needs browser confirmation)
   5. ~~Input actions~~ DONE (v2.6; live pads/sticks need browser confirmation)
   6. ~~Audio samples~~ DONE (v2.7; WebAudio graph needs browser confirmation)
-Then gizmos+undo (Phases 5/25).
+  7. ~~Gizmos + undo~~ DONE (v2.8; drag interaction needs browser confirmation)
+Then particles (Phase 10), terrain (Phase 13), nav/AI (Phase 14).
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
 navmesh, particles GPU, C#/Lua scripting, packages, consoles/mobile.

@@ -68,6 +68,12 @@ async function bootProject(path: string) {
     addTex: (id, img) => tex(id, img),
     projectPath: () => path,
     mats: renderer.materials,
+    viewport: () => ({
+      view: renderer.camera.view(),
+      proj: renderer.camera.projection(canvas.width / Math.max(1, canvas.height)),
+      width: canvas.width,
+      height: canvas.height,
+    }),
   });
   if (!editor.visible) editor.toggle();
   try {
@@ -288,6 +294,12 @@ async function build() {
   if (params.has("editor")) {
     editor = new EditorOverlay(world, document.getElementById("ui")!, {
       addTex, projectPath: () => params.get("project"), mats: renderer.materials,
+      viewport: () => ({
+        view: renderer.camera.view(),
+        proj: renderer.camera.projection(canvas.width / Math.max(1, canvas.height)),
+        width: canvas.width,
+        height: canvas.height,
+      }),
     });
     if (!editor.visible) editor.toggle();
   }
