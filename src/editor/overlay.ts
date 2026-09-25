@@ -6,6 +6,8 @@ import { setParent } from "../ecs/hierarchy.js";
 import { saveScene, loadScene } from "../scene/scene.js";
 import { buildActor, poseActor, type ActorOpts } from "../scene/actor.js";
 import type { MaterialDB } from "../rendering/materials.js";
+import type { ParticleSystem } from "../fx/particles.js";
+import { fountainDef } from "../fx/particles.js";
 import { History } from "./history.js";
 import {
   axisParam, distPointToSegment2D, screenRay, snapValue, viewProj, worldToScreen,
@@ -24,6 +26,7 @@ export interface EditorHooks {
   projectPath?: () => string | null;
   mats?: MaterialDB;
   viewport?: () => Viewport | null;
+  fx?: () => ParticleSystem | null;
 }
 
 interface CompSnap {
@@ -174,6 +177,17 @@ export class EditorOverlay {
     row2.appendChild(mkBtn("+ Static", () => this.addCommand("static", () => this.addBox(true))));
     row2.appendChild(mkBtn("+ Actor", () => this.addCommand("actor", () => this.addActor())));
     row2.appendChild(mkBtn("+ Trigger", () => this.addCommand("trigger", () => this.addTrigger())));
+    row2.appendChild(mkBtn("+ FX", () => {
+      const fx = this.hooks?.fx?.();
+      if (!fx) return;
+      let id = -1;
+      this.history.execute({
+        label: "add fx",
+        do: () => { id = fx.attach(fountainDef(), 0, 1, 0); },
+        undo: () => { if (id >= 0) fx.detachEmitter(id); },
+      });
+      this.update();
+    }));
     this.panel.appendChild(row2);
 
     const row3 = document.createElement("div");

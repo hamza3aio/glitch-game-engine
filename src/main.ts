@@ -8,6 +8,7 @@ import { hideBlob, makeBlob, stickBlob } from "./rendering/shadows.js";
 import { paintAsphalt, paintBrick, paintGrass, paintNoiseNormal, paintRoof, paintSign } from "./rendering/proctex.js";
 import { makePBR } from "./rendering/materials.js";
 import { buildActor, poseActor, type ActorRig } from "./scene/actor.js";
+import { ParticleSystem, type EmitterDef } from "./fx/particles.js";
 import { loadScene } from "./scene/scene.js";
 import { EditorOverlay } from "./editor/overlay.js";
 import { car, crosswalk, dashes, house, pine, pole, shop, sidewalk, wireRun } from "./scene/citykit.js";
@@ -45,6 +46,18 @@ const engine = new Engine(canvas);
 const { world, input, audio, renderer } = engine;
 const actions = new InputActions(input);
 const character = new CharacterController({ speed: 6, jumpSpeed: 8, acceleration: 40 });
+const fx = new ParticleSystem(world, 256);
+
+function spark(x: number, y: number, z: number, r: number, g: number, b: number, n = 14) {
+  const def: EmitterDef = {
+    rate: 0, burst: 0, duration: 0, looping: false,
+    life: [0.4, 0.8], speed: [2, 4.5], direction: new Vec3(0, 1, 0), spread: 0.7,
+    size: [0.1, 0.2], growth: -0.05,
+    colorStart: [r, g, b], colorEnd: [r * 0.35, g * 0.35, b * 0.35],
+    gravity: -6, drag: 1, bounce: 0.4, meshId: "cube",
+  };
+  fx.burst(def, x, y, z, n);
+}
 const loader = new LoadingScreen();
 const params = new URLSearchParams(location.search);
 const projectPath = params.get("project");
@@ -68,6 +81,7 @@ async function bootProject(path: string) {
     addTex: (id, img) => tex(id, img),
     projectPath: () => path,
     mats: renderer.materials,
+    fx: () => fx,
     viewport: () => ({
       view: renderer.camera.view(),
       proj: renderer.camera.projection(canvas.width / Math.max(1, canvas.height)),
@@ -93,6 +107,7 @@ async function bootProject(path: string) {
     renderer.camera.updateOrbit(drag.dx, drag.dy);
     renderer.camera.follow(new Vec3(0, 2, 0));
     editor.update();
+    if (!editor.isPaused()) fx.update(1 / 60);
   });
   engine.start();
 }
@@ -294,6 +309,7 @@ async function build() {
   if (params.has("editor")) {
     editor = new EditorOverlay(world, document.getElementById("ui")!, {
       addTex, projectPath: () => params.get("project"), mats: renderer.materials,
+      fx: () => fx,
       viewport: () => ({
         view: renderer.camera.view(),
         proj: renderer.camera.projection(canvas.width / Math.max(1, canvas.height)),
@@ -316,6 +332,14 @@ async function enter() {
 function endShift(won: boolean) {
   over = true;
   audio.pickup();
+  if (won) {
+    const t = world.get<Transform>(player, "transform");
+    const px = t ? t.position.x : 0;
+    const pz = t ? t.position.z : 0;
+    spark(px, 2, pz, 1.0, 0.85, 0.3, 40);
+    spark(px + 1, 2.5, pz - 1, 0.4, 0.8, 1.0, 30);
+    spark(px - 1, 2.5, pz + 1, 1.0, 0.4, 0.8, 30);
+  }
   showModal(
     won ? "SHIFT COMPLETE" : "SHIFT FAILED",
     won
@@ -328,6 +352,7 @@ function endShift(won: boolean) {
 engine.addSystem((dt) => {
   editor?.update();
   if (editor?.isPaused()) return;
+  fx.update(dt);
 
   // shift clock: full day = 480s
   if (entered && !over) {
@@ -372,6 +397,7 @@ engine.addSystem((dt) => {
         hideBlob(world, blobCrates[i]);
         carried++;
         audio.blip(700, 0.1, "sine", 0.07);
+        spark(ct.position.x, 1, ct.position.z, 1.0, 0.75, 0.2);
         showToast(`Crate ${carried}/5 — deliver at the green pad.`);
       }
     });
@@ -380,6 +406,7 @@ engine.addSystem((dt) => {
       delivered += carried;
       carried = 0;
       audio.trigger();
+      spark(pt.position.x, 1, pt.position.z, 0.3, 1.0, 0.4, 20);
       if (delivered >= 5) endShift(true);
       else showToast(`Delivered ${delivered}/5.`);
     }
@@ -403,7 +430,7 @@ engine.addSystem((dt) => {
   stickBlob(world, blobA, ax, 0, 6);
   stickBlob(world, blobB, 6, 0, -6);
 
-  stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} · ${clockText()}`;
+  stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} fx ${fx.aliveCount} · ${clockText()}`;
 });
 
 const unlock = () => audio.resume();

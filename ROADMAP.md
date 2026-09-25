@@ -183,3 +183,14 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
 - Found by tests: broken 4-arg/3-arg inspector wiring, stale button labels,
   cofactor inverse wrong on rotations
 - Open: rotate/scale gizmos, multi-select, duplicate, parenting UI
+
+## v2.9 — Particle systems (this change)
+
+- `src/fx/particles.ts` — pooled CPU particles as plain entities (culling +
+  instancing apply for free): rate/burst/duration emitters, cone sampling,
+  gravity/drag/ground bounce, color + size over life, entity follow, stable
+  emitter ids, `fountainDef()` preset, per-frame {emitted, alive} stats
+- Editor "+ FX" button (undoable attach), demo bursts on pickup/deliver/win,
+  HUD alive counter
+- `tests/fx.test.ts` — 10 tests; found a real bug (pool never filled)
+- Open: trails, sub-emitters, GPU particles, collision beyond ground

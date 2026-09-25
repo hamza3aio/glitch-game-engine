@@ -1,4 +1,4 @@
-# Glitch Game Engine v2.8
+# Glitch Game Engine v2.9
 
 Minimal 3D web game engine (raw WebGL2, zero runtime deps). Launches with a
 project browser (New / My / Sample projects), edits scenes in-app, and ships
@@ -11,10 +11,10 @@ npm install
 npm run dist:exe
 ```
 
-Tests: `npm test` (vitest, 106 tests: math, ECS, hierarchy, IDs, prefabs,
+Tests: `npm test` (vitest, 116 tests: math, ECS, hierarchy, IDs, prefabs,
 migration, rendering/culling/instancing, materials/PBR, physics, layers,
 shapes, triggers, raycast, character, scene, sky, input/actions, audio,
-samples/synth, editor/history/gizmo/DOM).
+samples/synth, particles, editor/history/gizmo/DOM).
 
 Launch the app → project browser → **Sample Projects → Play**
 (Dusk Street: Night Shift), or **New Project** and press **F9** to edit.
@@ -31,6 +31,7 @@ Launch the app → project browser → **Sample Projects → Play**
 - `src/scene/` — `prefab.ts` (box/platform/pickup/trigger), `scene.ts` (v3 save/load JSON + migration), `prefabs.ts` (GUID prefab assets: save/parse/instantiate), `citykit.ts` (procedural street props: houses, pines, poles + wires, shops, gas stations, cars, fences, piers, scaffolds, mountains), `actor.ts` (cartoonish articulated characters: painted faces, walk-cycle posing, mesh hide/show)
 - `src/assets/` — `loader.ts` (texture/OBJ/JSON with cache)
 - `src/editor/` — `overlay.ts` (hierarchy + inspector + save/load, undo/redo, move gizmo, click-pick, `?editor=1`), `history.ts` (commands), `gizmo.ts` (projection/picking/drag math)
+- `src/fx/` — `particles.ts` (pooled CPU particles: emission, bursts, gravity/drag/bounce, color/size over life, follow, cone sampling)
 - `src/examples/` — `second-level.ts`
 - `src/ui/` — `hud.ts`, `menu.ts` (main-menu overlay with hooks)
 - `src/net/` — `p2p.ts` (serverless player-hosted WebRTC: host authority, snapshots, requests, 4 max)
