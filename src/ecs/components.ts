@@ -43,6 +43,7 @@ export interface MeshRef {
   textureId?: string;
   uvScale?: number;
   shininess?: number;
+  materialId?: string; // PBR material id; unknown ids fall back to legacy shading
 }
 
 export interface Spin {

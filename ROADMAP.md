@@ -106,6 +106,23 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
   capsule resting, wall push-out, raycast mask/ignore/normals
 - Open: editor physics UI, mesh colliders, CCD, dynamics-vs-dynamics
 
+## v2.5 — PBR materials (this change)
+
+- `src/rendering/materials.ts` — PBR data model (albedo/metallic/roughness/
+  normal/AO/emission/opacity/alpha/cull), registry + presets + validation,
+  `resolveMaterial` routing rule (unknown ids fall back to legacy shading)
+- `src/rendering/pbr.ts` — CPU mirror of the shader BRDF; tests pin diffuse,
+  metal cutoff, backlight zero, smooth/rough ratio, finiteness + energy
+- `PBR_FRAG_SRC` — Cook-Torrance GGX + Schlick + Smith, derivative-frame
+  normal mapping (no tangents needed), AO on ambient, emission, alpha
+  mask/blend, fog; kept separate so legacy shaders are untouched
+- `Renderer` PBR path (own program, 5 texture units, blend/cull handling),
+  sky/ground ambient colors, PBR items excluded from instancing (documented)
+- Editor material section: pick/duplicate + live metallic/roughness/emission/
+  alpha/double-sided; library persistence still open (asset-DB work)
+- Demo exercises it all: gold crates, emissive pad, mapped plinth, hologram
+- Found by tests: epsilon choice inverted mirror peaks (fixed in TS + GLSL)
+
 - `src/ecs/ids.ts` — opt-in persistent UIDs (`assignUid/getUid/findByUid`);
   saves stay minimal + deterministic (only pre-assigned UIDs serialize)
 - `src/scene/prefabs.ts` — GUID prefab assets (`savePrefab/parsePrefab/

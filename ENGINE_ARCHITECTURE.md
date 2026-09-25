@@ -115,6 +115,7 @@ Next 3 subsystems in priority order:
   1. ~~Prefab assets + stable entity IDs + scene migration~~ DONE (v2.2)
   2. ~~Frustum culling + mesh instancing~~ DONE (v2.3; GL path needs browser confirmation)
   3. ~~Collision layers + sphere/capsule colliders~~ DONE (v2.4)
-Then materials/PBR (Phase 4), input actions (Phase 16), audio samples (Phase 11), gizmos+undo (Phases 5/25).
+  4. ~~PBR materials~~ DONE (v2.5; GL path needs browser confirmation)
+Then input actions (Phase 16), audio samples (Phase 11), gizmos+undo (Phases 5/25).
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
 navmesh, particles GPU, C#/Lua scripting, packages, consoles/mobile.

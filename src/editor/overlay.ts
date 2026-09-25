@@ -3,10 +3,12 @@ import { Vec3 } from "../math/vec3.js";
 import { makeTransform, type MeshRef, type Transform } from "../ecs/components.js";
 import { saveScene, loadScene } from "../scene/scene.js";
 import { buildActor, poseActor } from "../scene/actor.js";
+import type { MaterialDB } from "../rendering/materials.js";
 
 export interface EditorHooks {
   addTex: (id: string, img: TexImageSource) => void;
   projectPath?: () => string | null;
+  mats?: MaterialDB;
 }
 
 // Full in-engine editor: hierarchy + transform/color inspector,
@@ -202,6 +204,103 @@ export class EditorOverlay {
       del.onclick = () => { this.world.destroy(this.selected); this.selected = -1; this.update(); };
       crow.appendChild(del);
       this.infoEl.appendChild(crow);
+      this.renderMaterialSection(m);
     }
+  }
+
+  private slider(label: string, min: number, max: number, step: number, get: () => number, set: (v: number) => void): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "margin-top:4px;";
+    wrap.innerHTML = `<span style="opacity:0.6">${label} </span>`;
+    const val = document.createElement("span");
+    val.textContent = get().toFixed(2);
+    const inp = document.createElement("input");
+    inp.type = "range";
+    inp.min = String(min); inp.max = String(max); inp.step = String(step);
+    inp.value = String(get());
+    inp.style.cssText = "width:130px;vertical-align:middle;";
+    inp.oninput = () => { const v = Number(inp.value); if (isFinite(v)) { set(v); val.textContent = v.toFixed(2); } };
+    wrap.appendChild(inp);
+    wrap.appendChild(val);
+    return wrap;
+  }
+
+  // Material workflow: pick a registered material (or Duplicate-then-edit so
+  // shared presets stay pristine), tune the key PBR knobs live.
+  private renderMaterialSection(m: MeshRef) {
+    const db = this.hooks?.mats;
+    const sec = document.createElement("div");
+    sec.style.cssText = "margin-top:8px;border-top:1px solid #334155;padding-top:6px;";
+    if (!db) {
+      sec.innerHTML = `<div style="opacity:0.6">materials: no library bound</div>`;
+      this.infoEl.appendChild(sec);
+      return;
+    }
+    sec.innerHTML = `<div><span style="opacity:0.6">material</span></div>`;
+    const sel = document.createElement("select");
+    sel.style.cssText = "background:#0f172a;color:#fff;border:1px solid #475569;border-radius:4px;margin-top:4px;";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "(legacy shading)";
+    sel.appendChild(none);
+    for (const id of db.ids()) {
+      const op = document.createElement("option");
+      op.value = id;
+      op.textContent = id;
+      if (m.materialId === id) op.selected = true;
+      sel.appendChild(op);
+    }
+    sel.onchange = () => {
+      m.materialId = sel.value === "" ? undefined : sel.value;
+      this.renderInspector();
+    };
+    sec.appendChild(sel);
+    const mat = m.materialId ? db.get(m.materialId) : undefined;
+    if (mat) {
+      sec.appendChild(this.slider("metallic", 0, 1, 0.05, () => mat.metallic, (v) => { mat.metallic = v; }));
+      sec.appendChild(this.slider("roughness", 0, 1, 0.05, () => mat.roughness, (v) => { mat.roughness = v; }));
+      sec.appendChild(this.slider("emission", 0, 4, 0.1, () => mat.emissiveIntensity, (v) => { mat.emissiveIntensity = v; }));
+      const row = document.createElement("div");
+      row.style.cssText = "margin-top:4px;display:flex;gap:6px;align-items:center;";
+      const modes: ["opaque", "mask", "blend"] = ["opaque", "mask", "blend"];
+      const ms = document.createElement("select");
+      ms.style.cssText = "background:#0f172a;color:#fff;border:1px solid #475569;border-radius:4px;";
+      for (const mode of modes) {
+        const op = document.createElement("option");
+        op.value = mode;
+        op.textContent = mode;
+        if (mat.alphaMode === mode) op.selected = true;
+        ms.appendChild(op);
+      }
+      ms.onchange = () => { mat.alphaMode = ms.value as "opaque" | "mask" | "blend"; };
+      row.appendChild(ms);
+      const ds = document.createElement("label");
+      ds.style.cssText = "font-size:11px;opacity:0.8;";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = mat.doubleSided;
+      cb.onchange = () => { mat.doubleSided = cb.checked; };
+      ds.appendChild(cb);
+      ds.appendChild(document.createTextNode(" double-sided"));
+      row.appendChild(ds);
+      const dup = document.createElement("button");
+      dup.textContent = "Duplicate";
+      dup.style.cssText = "padding:2px 8px;background:#1e293b;color:#fff;border:1px solid #475569;border-radius:4px;cursor:pointer;";
+      dup.onclick = () => {
+        const id = `${m.materialId}-copy`;
+        try {
+          db.duplicate(m.materialId!, id);
+          m.materialId = id;
+          this.renderInspector();
+        } catch {
+          m.materialId = id + "-" + Date.now().toString(36);
+          db.duplicate(sel.value, m.materialId);
+          this.renderInspector();
+        }
+      };
+      row.appendChild(dup);
+      sec.appendChild(row);
+    }
+    this.infoEl.appendChild(sec);
   }
 }

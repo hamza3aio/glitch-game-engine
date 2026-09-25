@@ -5,7 +5,8 @@ import { CharacterController } from "./physics/character.js";
 import { InputActions } from "./input/actions.js";
 import { skyAt } from "./rendering/sky.js";
 import { hideBlob, makeBlob, stickBlob } from "./rendering/shadows.js";
-import { paintAsphalt, paintBrick, paintGrass, paintRoof, paintSign } from "./rendering/proctex.js";
+import { paintAsphalt, paintBrick, paintGrass, paintNoiseNormal, paintRoof, paintSign } from "./rendering/proctex.js";
+import { makePBR } from "./rendering/materials.js";
 import { buildActor, poseActor, type ActorRig } from "./scene/actor.js";
 import { loadScene } from "./scene/scene.js";
 import { EditorOverlay } from "./editor/overlay.js";
@@ -66,6 +67,7 @@ async function bootProject(path: string) {
   const editor = new EditorOverlay(world, document.getElementById("ui")!, {
     addTex: (id, img) => tex(id, img),
     projectPath: () => path,
+    mats: renderer.materials,
   });
   if (!editor.visible) editor.toggle();
   try {
@@ -112,6 +114,7 @@ let delivered = 0;
 let over = false;
 const crates: Entity[] = [];
 let pad: Entity;
+let holo: Entity;
 
 const menu = new MainMenu({
   onContinue: () => void enter(),
@@ -149,6 +152,17 @@ async function build() {
   tex("roof", paintRoof([0.3, 0.24, 0.2]));
   tex("sign-mart", paintSign("MART", [0.5, 0.1, 0.1], [1.0, 0.8, 0.2]));
   tex("sign-fuels", paintSign("FUELS", [0.9, 0.45, 0.1], [0.1, 0.1, 0.12]));
+  tex("pave-normal", paintNoiseNormal(128, 11, 2));
+  renderer.materials.register("pad-glow", makePBR("Pad", {
+    emissive: [0.2, 0.9, 0.3], emissiveIntensity: 1.5, roughness: 0.6,
+  }));
+  renderer.materials.register("plinth", makePBR("Plinth", {
+    albedoMap: "brick", normalMap: "pave-normal", aoMap: "brick", aoStrength: 0.8, roughness: 0.85,
+  }));
+  renderer.materials.register("holo", makePBR("Hologram", {
+    emissive: [0.3, 0.9, 1.0], emissiveIntensity: 1.2, opacity: 0.35,
+    alphaMode: "blend", doubleSided: true, metallic: 0, roughness: 0.2,
+  }));
 
   loader.stage(0.3, "Paving streets…");
   await nextFrame();
@@ -193,21 +207,37 @@ async function build() {
   pole(world, -20, 4.5);
   wireRun(world, 20.5, -44, 20.5, 44);
 
-  // deliver pad (green) at the shop door
+  // deliver pad (emissive PBR) at the shop door + hologram marker (blend)
   pad = world.create();
   {
     const t = makeTransform(18, 0.06, -7.5);
     t.scale.set(3, 0.08, 2);
     world.add(pad, "transform", t);
-    world.add<MeshRef>(pad, "mesh", { meshId: "cube", color: [0.2, 0.8, 0.3] });
+    world.add<MeshRef>(pad, "mesh", { meshId: "cube", color: [1, 1, 1], materialId: "pad-glow" });
   }
-  // supply crates
+  holo = world.create();
+  {
+    const t = makeTransform(18, 1.6, -7.5);
+    t.scale.set(1.4, 2.4, 1.4);
+    world.add(holo, "transform", t);
+    world.add<MeshRef>(holo, "mesh", { meshId: "cube", color: [1, 1, 1], materialId: "holo" });
+  }
+  // mapped plinth: albedo + normal + AO textures on one PBR material
+  {
+    const p = world.create();
+    const t = makeTransform(4, 1, 10);
+    t.scale.set(1.6, 2, 1.6);
+    world.add(p, "transform", t);
+    world.add<MeshRef>(p, "mesh", { meshId: "cube", color: [1, 1, 1], materialId: "plinth", uvScale: 2 });
+    world.add(p, "collider", { halfExtents: new Vec3(0.5, 0.5, 0.5), isStatic: true });
+  }
+  // supply crates (gold metal PBR)
   for (let i = 0; i < 5; i++) {
     const c = world.create();
     world.add(c, "transform", makeTransform(0, -10, 0));
     const ct = world.get<Transform>(c, "transform")!;
     ct.scale.set(0.55, 0.55, 0.55);
-    world.add<MeshRef>(c, "mesh", { meshId: "cube", color: [1.0, 0.75, 0.2] });
+    world.add<MeshRef>(c, "mesh", { meshId: "cube", color: [1, 1, 1], materialId: "gold" });
     crates.push(c);
     blobCrates.push(makeBlob(world, 0.8));
   }
@@ -257,7 +287,7 @@ async function build() {
   resetShift();
   if (params.has("editor")) {
     editor = new EditorOverlay(world, document.getElementById("ui")!, {
-      addTex, projectPath: () => params.get("project"),
+      addTex, projectPath: () => params.get("project"), mats: renderer.materials,
     });
     if (!editor.visible) editor.toggle();
   }
@@ -356,6 +386,8 @@ engine.addSystem((dt) => {
   const ax = -8 + Math.sin(npcPhase * 0.35) * 5;
   poseActor(world, npcA, ax, 0, 6, Math.cos(npcPhase * 0.35) > 0 ? Math.PI / 2 : -Math.PI / 2, npcPhase * 4, true);
   poseActor(world, npcB, 6, 0, -6, Math.PI, npcPhase, false);
+  const ht = world.get<Transform>(holo, "transform");
+  if (ht) ht.rotationY += dt * 1.5;
   stickBlob(world, blobA, ax, 0, 6);
   stickBlob(world, blobB, 6, 0, -6);
 
