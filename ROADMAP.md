@@ -123,6 +123,21 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
 - Demo exercises it all: gold crates, emissive pad, mapped plinth, hologram
 - Found by tests: epsilon choice inverted mirror peaks (fixed in TS + GLSL)
 
+## v2.6 — Input actions (this change)
+
+- `src/input/input.ts` — pressed/released edges + `endFrame()` (wired via a
+  new optional `GameLoop` frameEnd hook), wheel deltas, touch tracking with
+  single-finger orbit, pointer lock deltas, reversible `detach()`
+- `src/input/actionmap.ts` — named buttons/1D axes/2D vectors, per-context
+  bindings with global fallback, rebind/remove, JSON save/load with skipped-
+  entry counts, gamepad buttons/axes with deadzone + invert via injectable
+  pad source (headless-testable), strict errors for undefined actions
+- `src/input/actions.ts` — legacy WASD/Space/R wrapper reimplemented on the
+  map with byte-identical keyboard behavior (+ `update()` passthrough)
+- `tests/input.test.ts` — 11 tests; real finding: `tsc` caught the
+  Set-vs-method `pressed` clash between `Input` and the first `RawState` draft
+- Open: touch joysticks/game-side gestures, rumble, multi-pad arbitration
+
 - `src/ecs/ids.ts` — opt-in persistent UIDs (`assignUid/getUid/findByUid`);
   saves stay minimal + deterministic (only pre-assigned UIDs serialize)
 - `src/scene/prefabs.ts` — GUID prefab assets (`savePrefab/parsePrefab/
