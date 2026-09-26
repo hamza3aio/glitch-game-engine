@@ -221,3 +221,22 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
   before running (fringe cells, wall corridors, cliff placement)
 - Demo: NPC-A walks a real A* patrol loop around the block (visible proof)
 - Open: recast-style meshes, off-mesh links, avoidance prediction, behavior trees
+
+## v2.12 — Lua scripting (this change)
+
+- Decision: Lua via fengari (pure JS — runs in Node tests, vite bundle, and
+  Electron file:// with no WASM/fetch). C# rejected: no host toolchain here
+  to verify against (documented, reversible)
+- `src/script/lua.ts` — sandboxed VM (io/os/loaders/debug nil'd, captured
+  print, waitSeconds prelude), table chunks, pcall hooks, scalar vars,
+  real coroutines (registry-held threads)
+- `src/script/script.ts` — entity-bound runtime: start/update/onCollide,
+  transform/log/time API, `co()` coroutines, per-entity error log (capped),
+  reload (state reset), dead-entity pruning
+- `tests/script.test.ts` — 14 tests; found two real bugs (binding registered
+  after start so `co()` silently failed; initial wake ignored first yield)
+- Demo: hologram motion moved from hardcoded TS to a Lua script
+- Browser note: fengari bundles Node-only code paths, but bundle inspection
+  shows all are `typeof process`-guarded or behind sandbox-nil'd globals;
+  live browser run still pending like the other GL paths
+- Open: editor script component UI, breakpoints, hot reload preserving state

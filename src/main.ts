@@ -9,6 +9,7 @@ import { paintAsphalt, paintBrick, paintGrass, paintNoiseNormal, paintRoof, pain
 import { makePBR } from "./rendering/materials.js";
 import { buildActor, poseActor, type ActorRig } from "./scene/actor.js";
 import { ParticleSystem, type EmitterDef } from "./fx/particles.js";
+import { ScriptRuntime } from "./script/script.js";
 import { loadScene } from "./scene/scene.js";
 import { EditorOverlay } from "./editor/overlay.js";
 import { car, crosswalk, dashes, house, pine, pole, shop, sidewalk, wireRun } from "./scene/citykit.js";
@@ -53,6 +54,16 @@ const { world, input, audio, renderer } = engine;
 const actions = new InputActions(input);
 const character = new CharacterController({ speed: 6, jumpSpeed: 8, acceleration: 40 });
 const fx = new ParticleSystem(world, 256);
+const scripts = new ScriptRuntime(world);
+let scriptErrorShown = 0;
+
+const HOLO_SCRIPT = `local S = { t = 0 }
+function S.update(api, dt)
+  S.t = S.t + dt
+  api.setRotY(S.t * 1.5)
+  api.setPos(api.getX(), 1.6 + math.sin(S.t * 2.0) * 0.3, api.getZ())
+end
+return S`;
 
 function spark(x: number, y: number, z: number, r: number, g: number, b: number, n = 14) {
   const def: EmitterDef = {
@@ -277,6 +288,7 @@ async function build() {
     t.scale.set(1.4, 2.4, 1.4);
     world.add(holo, "transform", t);
     world.add<MeshRef>(holo, "mesh", { meshId: "cube", color: [1, 1, 1], materialId: "holo" });
+    scripts.attach(holo, HOLO_SCRIPT, "holo-spin");
   }
   // mapped plinth: albedo + normal + AO textures on one PBR material
   {
@@ -484,8 +496,11 @@ engine.addSystem((dt) => {
     stickBlob(world, blobA, ax, 0, 6);
   }
   poseActor(world, npcB, 6, 0, -6, Math.PI, npcPhase, false);
-  const ht = world.get<Transform>(holo, "transform");
-  if (ht) ht.rotationY += dt * 1.5;
+  scripts.update(dt);
+  if (scripts.errors.length > scriptErrorShown) {
+    scriptErrorShown = scripts.errors.length;
+    showToast(`Script error: ${scripts.errors[scripts.errors.length - 1].message.slice(0, 90)}`);
+  }
   stickBlob(world, blobB, 6, 0, -6);
 
   stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} fx ${fx.aliveCount} · ${clockText()}`;
