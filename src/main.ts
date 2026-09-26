@@ -12,6 +12,8 @@ import { ParticleSystem, type EmitterDef } from "./fx/particles.js";
 import { loadScene } from "./scene/scene.js";
 import { EditorOverlay } from "./editor/overlay.js";
 import { car, crosswalk, dashes, house, pine, pole, shop, sidewalk, wireRun } from "./scene/citykit.js";
+import { bakeNavmesh, findPath, type NavGrid } from "./ai/navmesh.js";
+import { hasArrived, setPath, updateAgent } from "./ai/agent.js";
 import {
   addNoise, createHeightmap, createSplat, extent, mulberry32, paintWhere,
   raise, sampleHeight, scatterSpots, slopeAt, smooth, splatToCanvas, terrainMesh,
@@ -129,6 +131,13 @@ let blobHero = 0 as Entity;
 let blobA = 0 as Entity;
 let blobB = 0 as Entity;
 const blobCrates: Entity[] = [];
+let navGrid: NavGrid | null = null;
+let npcABody = 0 as Entity;
+let patrolLeg = 0;
+let npcWalkPhase = 0;
+const PATROL = [
+  { x: -12, z: 6 }, { x: 12, z: 6 }, { x: 12, z: -6 }, { x: -12, z: -6 },
+];
 
 // shift state: 22:00 -> 06:00 (8 game-hours), full day = 480s
 const SHIFT_START = 22 * 60;
@@ -332,6 +341,14 @@ async function build() {
     { position: new Vec3(8, 3.5, 4), color: [1.0, 0.85, 0.6], intensity: 1.0, range: 20 },
   );
   resetShift();
+  // NPC-A patrols the block on a baked navmesh (live pathfinding demo).
+  navGrid = bakeNavmesh(world, { minX: -30, maxX: 30, minZ: -20, maxZ: 20, cell: 1 });
+  npcABody = world.create();
+  world.add(npcABody, "transform", makeTransform(PATROL[0].x, 0, PATROL[0].z));
+  {
+    const first = findPath(navGrid, PATROL[0].x, PATROL[0].z, PATROL[1].x, PATROL[1].z);
+    if (first) setPath(world, npcABody, first, 2.2);
+  }
   if (params.has("editor")) {
     editor = new EditorOverlay(world, document.getElementById("ui")!, {
       addTex, projectPath: () => params.get("project"), mats: renderer.materials,
@@ -446,14 +463,29 @@ engine.addSystem((dt) => {
     poseActor(world, rig, t.position.x, t.position.y - 1.0, t.position.z, t.rotationY, 0, false);
   }
 
-  // neighbors
+  // neighbors: npcA walks a real A* patrol loop, npcB stands post
   npcPhase += dt * 1.2;
-  const ax = -8 + Math.sin(npcPhase * 0.35) * 5;
-  poseActor(world, npcA, ax, 0, 6, Math.cos(npcPhase * 0.35) > 0 ? Math.PI / 2 : -Math.PI / 2, npcPhase * 4, true);
+  if (navGrid && world.isAlive(npcABody)) {
+    const bt = world.get<Transform>(npcABody, "transform")!;
+    const before = { x: bt.position.x, z: bt.position.z };
+    if (hasArrived(world, npcABody)) {
+      patrolLeg = (patrolLeg + 1) % PATROL.length;
+      const next = findPath(navGrid, bt.position.x, bt.position.z, PATROL[patrolLeg].x, PATROL[patrolLeg].z);
+      if (next) setPath(world, npcABody, next, 2.2);
+    }
+    updateAgent(world, npcABody, dt);
+    const moved = Math.hypot(bt.position.x - before.x, bt.position.z - before.z);
+    if (moved > 0.001) npcWalkPhase += dt * 8;
+    poseActor(world, npcA, bt.position.x, 0, bt.position.z, bt.rotationY, npcWalkPhase, moved > 0.001);
+    stickBlob(world, blobA, bt.position.x, 0, bt.position.z);
+  } else {
+    const ax = -8 + Math.sin(npcPhase * 0.35) * 5;
+    poseActor(world, npcA, ax, 0, 6, Math.cos(npcPhase * 0.35) > 0 ? Math.PI / 2 : -Math.PI / 2, npcPhase * 4, true);
+    stickBlob(world, blobA, ax, 0, 6);
+  }
   poseActor(world, npcB, 6, 0, -6, Math.PI, npcPhase, false);
   const ht = world.get<Transform>(holo, "transform");
   if (ht) ht.rotationY += dt * 1.5;
-  stickBlob(world, blobA, ax, 0, 6);
   stickBlob(world, blobB, 6, 0, -6);
 
   stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} fx ${fx.aliveCount} · ${clockText()}`;

@@ -121,6 +121,7 @@ Next 3 subsystems in priority order:
   7. ~~Gizmos + undo~~ DONE (v2.8; drag interaction needs browser confirmation)
   8. ~~Particles~~ DONE (v2.9; visual look needs browser confirmation)
   9. ~~Terrain~~ DONE (v2.10; GL path needs browser confirmation)
-Then nav/AI (Phase 14).
+  10. ~~Navigation + AI~~ DONE (v2.11; live crowd needs browser confirmation)
+Then scripting decision (C# vs Lua), post-processing, profilers.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
 navmesh, particles GPU, C#/Lua scripting, packages, consoles/mobile.

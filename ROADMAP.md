@@ -208,3 +208,16 @@ Acceptance: `npx tsc --noEmit` + `npx vite build` pass, demo still playable, new
   hilltop resting, patch bounds, JSON round-trip
 - Demo hill: sculpted + noise, slope-painted rock, walkable, pine-dotted
 - Open: chunked streaming LOD, editor sculpt tools, terrain texture import
+
+## v2.11 — Navigation + AI (this change)
+
+- `src/ai/navmesh.ts` — baked walkability grids (collider footprints +
+  agent inflation + terrain slope rejection), binary-heap A* (no corner
+  cutting, bounded expansions), clamp-to-walkable, string-pulling smoothing,
+  dynamic obstacle edits
+- `src/ai/agent.ts` — waypoint follow with facing, arrival states, crowd
+  separation; NaN-safe
+- `tests/ai.test.ts` — 11 tests; fixed three of my own wrong test geometries
+  before running (fringe cells, wall corridors, cliff placement)
+- Demo: NPC-A walks a real A* patrol loop around the block (visible proof)
+- Open: recast-style meshes, off-mesh links, avoidance prediction, behavior trees
