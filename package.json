@@ -1,6 +1,6 @@
 {
   "name": "glitch-game-engine",
-  "version": "2.25.0",
+  "version": "2.26.0",
   "private": true,
   "type": "module",
   "description": "Glitch Game Engine: minimal 3D web game engine with loop, WebGL2 rendering, ECS, physics, input, audio.",
@@ -41,9 +41,7 @@
         "AppImage",
         "tar.gz"
       ],
-      "category": "Game",
-      "desktopName": "glitch-game-engine",
-      "syncDesktopName": true
+      "category": "Game"
     },
     "mac": {
       "target": [

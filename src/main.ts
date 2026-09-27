@@ -569,7 +569,7 @@ async function build() {
     });
   }
   await loader.hide();
-  menu.show(true, "v2.25.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
+  menu.show(true, "v2.26.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
 }
 
 async function enter() {

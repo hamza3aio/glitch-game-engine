@@ -92,6 +92,11 @@ package manager, 2D renderer.
     Developer Mode or admin rights. Build AppImage on Linux/CI. The engine
     itself has no platform-specific code (`electron/main.cjs` uses `path`
     and `app.getPath` only).
+12. `electron-builder` 26.15.3 rejects `linux.desktopName` / `linux.syncDesktopName`
+    (schema mismatch in this version), so the AppImage `.desktop` entry is
+    generated with the default name and the builder logs a window-association
+    warning. Cosmetic; the app still starts. Also: no application icon yet, so
+    packaging uses the default Electron icon.
 
 ## 5. Dependency graph (imports)
 
