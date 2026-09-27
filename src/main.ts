@@ -380,7 +380,7 @@ async function build() {
     if (!editor.visible) editor.toggle();
   }
   await loader.hide();
-  menu.show(true, "v2.13.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag mouse.");
+  menu.show(true, "v2.14.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag mouse.");
 }
 
 async function enter() {
@@ -508,7 +508,7 @@ engine.addSystem((dt) => {
   }
   stickBlob(world, blobB, 6, 0, -6);
 
-  stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} fx ${fx.aliveCount} · ${clockText()}`;
+  stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} fx ${fx.aliveCount} · ${engine.profiler.formatLine()} · ${clockText()}`;
 });
 
 const unlock = () => audio.resume();
