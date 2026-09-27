@@ -47,6 +47,7 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Prefabs/kit | `scene/{prefab,citykit}.ts` | Spawn helpers + box-built street props. No GUIDs/instancing |
 | Actors | `scene/actor.ts` | 7-box cartoon rigs, painted faces, sine walk pose. No skeleton |
 | Assets | `assets/loader.ts` | Cached fetch for texture/OBJ/JSON. Not wired to editor |
+| Asset DB | `assets/db.ts` (NEW, v2.15) | GUID registry, per-kind import settings, dependency graph + cycle guard, versioned JSON, exposed as `Engine.assets` |
 | Editor | `editor/overlay.ts` | F9 panel: hierarchy list, transform/color inspector, add/delete, pause, project save / file fallback |
 | UI | `ui/{menu,hud}.ts` | Main-menu overlay with hooks, FPS/message HUD |
 | Net | `net/p2p.ts` | Serverless WebRTC listen-server (host authority, snapshots, 4 max). **Untested 2-machine** |
@@ -125,6 +126,7 @@ Next 3 subsystems in priority order:
   11. ~~Lua scripting~~ DONE (v2.12; live browser run pending like other GL paths)
   12. ~~Post-processing (grade + vignette composite, LUT baking, serializable chain)~~ DONE (v2.13; GL capture/composite path needs browser confirmation)
   13. ~~Frame profiler (injectable-clock scopes, counters/gauges, budgets, snapshots, HUD line)~~ DONE (v2.14)
-Remaining future work (deferred until demanded by a real game): shadow maps, skeletal animation, asset import DB, package manager, 2D renderer, net host migration.
+  14. ~~Asset database (GUID registry, import settings, dependency graph, versioned JSON)~~ DONE (v2.15)
+Remaining future work (deferred until demanded by a real game): shadow maps, skeletal animation, package manager, 2D renderer, net host migration.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
 navmesh, particles GPU, C#/Lua scripting, packages, consoles/mobile.

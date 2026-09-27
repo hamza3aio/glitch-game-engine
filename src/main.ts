@@ -81,6 +81,10 @@ const projectPath = params.get("project");
 
 function tex(id: string, img: TexImageSource) {
   renderer.registerCanvas(id, img);
+  // every demo texture is tracked in the asset database (idempotent)
+  if (!engine.assets.findByPath(`proc:${id}`)) {
+    engine.assets.register(`proc:${id}`, "texture");
+  }
 }
 
 // ================= PROJECT MODE (opened from the launcher) =================
@@ -380,7 +384,7 @@ async function build() {
     if (!editor.visible) editor.toggle();
   }
   await loader.hide();
-  menu.show(true, "v2.14.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag mouse.");
+  menu.show(true, "v2.15.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag mouse.");
 }
 
 async function enter() {
@@ -508,7 +512,7 @@ engine.addSystem((dt) => {
   }
   stickBlob(world, blobB, 6, 0, -6);
 
-  stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} fx ${fx.aliveCount} · ${engine.profiler.formatLine()} · ${clockText()}`;
+  stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} fx ${fx.aliveCount} assets ${engine.assets.count} · ${engine.profiler.formatLine()} · ${clockText()}`;
 });
 
 const unlock = () => audio.resume();

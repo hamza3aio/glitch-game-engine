@@ -6,6 +6,7 @@ import { TriggerSystem } from "../physics/trigger.js";
 import { Input } from "../input/input.js";
 import { AudioEngine } from "../audio/audio.js";
 import { FrameProfiler } from "../debug/profiler.js";
+import { AssetDB } from "../assets/db.js";
 
 export class Engine {
   world = new World();
@@ -15,6 +16,7 @@ export class Engine {
   input = new Input();
   audio = new AudioEngine();
   profiler = new FrameProfiler();
+  assets = new AssetDB();
   loop: GameLoop;
   private systems: ((dt: number) => void)[] = [];
 
