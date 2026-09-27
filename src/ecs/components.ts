@@ -1,5 +1,7 @@
 import { Vec3 } from "../math/vec3.js";
 import type { TerrainMaterial } from "../world/terrain.js";
+// Type-only: the LOD level shape lives with the renderer, but entities carry it.
+import type { LODLevel } from "../rendering/lod.js";
 
 export interface Transform {
   position: Vec3;
@@ -52,6 +54,13 @@ export interface MeshRef {
   shininess?: number;
   materialId?: string; // PBR material id; unknown ids fall back to legacy shading
   terrain?: TerrainMaterial; // splat-mapped terrain (takes its own draw path)
+  /**
+   * Optional LOD chain (Phase 2). When present the renderer draws the level
+   * whose screen coverage best matches the entity's distance from the
+   * camera. Level 0 should be `meshId` itself or a close variant; unknown
+   * mesh ids in a level fall back to `meshId`.
+   */
+  lod?: LODLevel[];
 }
 
 export interface Spin {

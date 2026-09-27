@@ -23,6 +23,7 @@ import type { MeshRef, Transform } from "../ecs/components.js";
 import { getParent, setParent } from "../ecs/hierarchy.js";
 import { assignUid, findByUid, getUid, makeUid } from "../ecs/ids.js";
 import { buildActor, poseActor, type ActorOpts } from "./actor.js";
+import type { LODLevel } from "../rendering/lod.js";
 
 export const SCENE_VERSION = 4;
 
@@ -114,6 +115,28 @@ function bool(v: unknown, fallback: boolean): boolean {
   return typeof v === "boolean" ? v : fallback;
 }
 
+/**
+ * Keeps only well-formed LOD levels: a non-empty meshId string and a finite
+ * coverage in 0..1 (optionally a cull floor). Anything else is dropped, and
+ * a chain with no usable level is dropped entirely.
+ */
+export function sanitizeLOD(v: unknown): LODLevel[] | null {
+  if (!Array.isArray(v)) return null;
+  const out: LODLevel[] = [];
+  for (const raw of v) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const l = raw as Record<string, unknown>;
+    if (typeof l.meshId !== "string" || l.meshId.length === 0) continue;
+    const coverage = num(l.coverage, -1);
+    if (coverage < 0 || coverage > 1) continue;
+    const level: LODLevel = { meshId: l.meshId, coverage };
+    const cull = num(l.cullBelow, -1);
+    if (cull >= 0 && cull <= 1) level.cullBelow = cull;
+    out.push(level);
+  }
+  return out.length > 0 ? out : null;
+}
+
 // --- migration ---
 
 /**
@@ -146,7 +169,14 @@ function migrateEntity(e: unknown, from: number): SerializedEntity {
   };
   if (typeof s.uid === "string" && s.uid.length > 0) out.uid = s.uid;
   if (s.parentUid === null || typeof s.parentUid === "string") out.parentUid = (s.parentUid as string | null) ?? null;
-  if (typeof s.mesh === "object" && s.mesh !== null) out.mesh = { ...(s.mesh as MeshRef) };
+  if (typeof s.mesh === "object" && s.mesh !== null) {
+    out.mesh = { ...(s.mesh as MeshRef) };
+    // `lod` is validated rather than spread through: a hand-edited file
+    // must not be able to inject an arbitrary blob into the render path.
+    const lod = sanitizeLOD((s.mesh as Record<string, unknown>).lod);
+    if (lod) out.mesh.lod = lod;
+    else delete out.mesh.lod;
+  }
   if (typeof s.actor === "object" && s.actor !== null) out.actor = s.actor as ActorOpts;
   if (typeof s.name === "string" && s.name.length > 0) out.name = s.name;
 

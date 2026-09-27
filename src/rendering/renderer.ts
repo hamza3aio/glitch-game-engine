@@ -14,6 +14,7 @@ import { PostStack, type PostPassKind } from "./poststack.js";
 import { ShadowMap, fitDirectionalShadow, sphereInsideShadow, type ShadowFit } from "./shadowmap.js";
 import type { QualitySettings } from "../core/quality.js";
 import { TONE_MAP_MODES, type ToneMapMode } from "./tonemap.js";
+import { LODTracker, type LODLevel } from "./lod.js";
 
 export interface ShadowSettings {
   enabled: boolean;
@@ -69,6 +70,10 @@ export interface RenderStats {
   shadowDraws: number;
   skinnedDraws: number;
   fxDraws: number;
+  /** Entities drawn with a reduced-detail LOD this frame. */
+  lodDraws: number;
+  /** Entities dropped because their LOD chain's cull floor was passed. */
+  lodCulled: number;
 }
 
 interface VisibleItem {
@@ -87,6 +92,8 @@ export class Renderer {
   private meshBounds = new Map<string, number>();
   private instanced = new Map<string, InstancedMesh>();
   private scratch = new Float32Array(MAX_BATCH * FLOATS_PER_INSTANCE);
+  /** Per-entity LOD level history, so hysteresis works across frames. */
+  private lod = new LODTracker();
   textures = new Map<string, Texture2D>();
   camera = new Camera();
   lightDir = new Vec3(-0.5, -1, -0.3);
@@ -102,7 +109,7 @@ export class Renderer {
   groundColor: [number, number, number] = [0.12, 0.1, 0.09];
   ambientStrength = 1.0;
   materials = new MaterialDB();
-  readonly stats: RenderStats = { total: 0, drawn: 0, culled: 0, instancedDraws: 0, regularDraws: 0, pbrDraws: 0, postDraws: 0, shadowDraws: 0, skinnedDraws: 0, fxDraws: 0 };
+  readonly stats: RenderStats = { total: 0, drawn: 0, culled: 0, instancedDraws: 0, regularDraws: 0, pbrDraws: 0, postDraws: 0, shadowDraws: 0, skinnedDraws: 0, fxDraws: 0, lodDraws: 0, lodCulled: 0 };
   /** Skinned meshes live outside the static mesh table (Phase 9). */
   skinned!: SkinnedMeshRegistry;
   private skinnedProgram!: WebGLProgram;
@@ -685,6 +692,8 @@ export class Renderer {
     this.stats.postDraws = 0;
     this.stats.fxDraws = 0;
     this.stats.shadowDraws = 0;
+    this.stats.lodDraws = 0;
+    this.stats.lodCulled = 0;
     // Shadow pass first, while the default framebuffer is still bound.
     if (this.shadows.enabled && this.lightIntensity > 0.01) {
       this.drawShadowPass(world);
@@ -715,7 +724,8 @@ export class Renderer {
     for (const e of world.query("transform", "mesh") as Entity[]) {
       this.stats.total++;
       const t = world.get<Transform>(e, "transform")!;
-      const m = world.get<MeshRef>(e, "mesh")!;
+      const meshRef = world.get<MeshRef>(e, "mesh")!;
+      const m = meshRef;
       const isSkinned = this.skinned.has(m.meshId);
       if (!isSkinned && !this.meshes.has(m.meshId)) continue;
       const bound = isSkinned
@@ -734,9 +744,25 @@ export class Renderer {
         terrainItems.push({ t, m, tm: m.terrain });
         continue;
       }
+      // LOD (Phase 2): swap in the level that matches the screen coverage.
+      // Unknown level meshes fall back to the entity's own mesh.
+      let drawMesh = m.meshId;
+      if (m.lod && m.lod.length > 1) {
+        const chain: LODLevel[] = m.lod;
+        const pick = this.lod.resolve(e, chain, bound, t.scale, this.camera.position, t.position, this.camera.fovY);
+        if (pick === null) {
+          this.stats.culled++;
+          this.stats.lodCulled++;
+          continue;
+        }
+        if (pick.meshId !== m.meshId) {
+          if (this.meshes.has(pick.meshId)) drawMesh = pick.meshId;
+          this.stats.lodDraws++;
+        }
+      }
       const mat = resolveMaterial(m, this.materials);
       if (mat) pbrItems.push({ t, m, mat });
-      else visible.push({ t, m, meshId: m.meshId, textureId: m.textureId, entity: e });
+      else visible.push({ t, m, meshId: drawMesh, textureId: m.textureId, entity: e });
     }
 
     const groups = groupInstances(visible);

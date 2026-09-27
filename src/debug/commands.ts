@@ -34,6 +34,7 @@ export function registerDefaultCommands(reg: CommandRegistry, engine: Engine, wo
         `frame ${p.frameMsAvg.toFixed(2)}ms (max ${p.frameMsMax.toFixed(2)}ms) ~${p.fps.toFixed(0)}fps over ${p.frames} frames`,
         p.scopes.map((s) => `  ${s.label} avg ${s.avgMs.toFixed(2)}ms max ${s.maxMs.toFixed(2)}ms x${s.calls}`).join("\n"),
         `render drawn ${r.drawn}/${r.total} culled ${r.culled} inst ${r.instancedDraws} shadow ${r.shadowDraws} post ${r.postDraws}`,
+        `lod reduced ${r.lodDraws} hidden ${r.lodCulled}`,
         `world entities ${world.count()} assets ${engine.assets.count} lights ${engine.renderer.pointLights.length}+${engine.renderer.spotLights.length}s`,
       ].join("\n"),
     };

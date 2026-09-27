@@ -25,7 +25,7 @@ import { ParticleSystem, type EmitterDef } from "./fx/particles.js";
 import { ScriptRuntime } from "./script/script.js";
 import { loadScene } from "./scene/scene.js";
 import { EditorOverlay } from "./editor/overlay.js";
-import { car, crosswalk, dashes, house, pine, pole, shop, sidewalk, wireRun } from "./scene/citykit.js";
+import { car, crosswalk, dashes, house, pine, pole, shop, sidewalk, wireRun, pineLOD } from "./scene/citykit.js";
 import { bakeNavmesh, findPath, type NavGrid } from "./ai/navmesh.js";
 import { hasArrived, setPath, updateAgent } from "./ai/agent.js";
 import {
@@ -33,6 +33,7 @@ import {
   raise, sampleHeight, scatterSpots, slopeAt, smooth, splatToCanvas, terrainMesh,
 } from "./world/terrain.js";
 import { MainMenu } from "./ui/menu.js";
+import { pyramidData, sphereData } from "./rendering/mesh.js";
 import { makeRigidbody, makeTransform, type MeshRef, type Rigidbody, type Transform } from "./ecs/components.js";
 import type { Entity } from "./ecs/world.js";
 
@@ -383,6 +384,19 @@ async function build() {
   stickBlob(world, makeBlob(world, 3.2), 8, 0, -1.5);
   pole(world, -20, 4.5);
   wireRun(world, 20.5, -44, 20.5, 44);
+
+  // LOD treeline (Phase 2): a ridge of pines whose crowns swap mesh by screen
+  // coverage, so the skyline stays cheap when the camera is far out.
+  {
+    renderer.registerMesh("proxy-cone", pyramidData(1, 1.4));
+    renderer.registerMesh("proxy-sphere", sphereData(0.5, 3, 5));
+    const rnd = mulberry32(77);
+    for (let i = 0; i < 26; i++) {
+      const a = (i / 26) * Math.PI * 2;
+      const r = 78 + rnd() * 34;
+      pineLOD(world, Math.cos(a) * r, Math.sin(a) * r, 1.6 + rnd() * 1.4, -0.2);
+    }
+  }
 
   // deliver pad (emissive PBR) at the shop door + hologram marker (blend)
   pad = world.create();
