@@ -32,7 +32,7 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Core loop | `core/{engine,loop,time,loading}.ts` | Fixed-step accumulator (1/60, 4-substep guard), FPS clock, staged DOM loading screen; v2.14 profiles every frame; v2.17 caps presentation rate from the quality config |
 | Quality | `core/quality.ts` (NEW, v2.17) | 4 presets (low/medium/high/ultra), field sanitisation, versioned localStorage persistence, render-scale + FPS limit, exposed as `Engine.quality` |
 | Tonemap | `rendering/tonemap.ts` + `TONEMAP_GLSL` (NEW, v2.17) | Exposure -> Reinhard/ACES -> gamma output stage, shared by all four lit programs; no-op at defaults |
-| Rendering | `rendering/renderer.ts` + `shader.ts` | Single Blinn-Phong WebGL2 program, 1 dir + ≤4 point lights, textured, distance fog; v2.3 adds frustum culling + instanced batches + frame stats; v2.13 adds post chain (scene capture + grade/vignette composite, off by default) |
+| Rendering | `rendering/renderer.ts` + `shader.ts` | Single Blinn-Phong WebGL2 program, 1 dir + ≤4 point/spot lights, textured, distance fog; v2.3 frustum culling + instanced batches + frame stats; v2.13 post chain; v2.16 directional shadow mapping; v2.21 GPU skinning; v2.22 post stack (7 passes, offscreen + composite) |
 | Meshes | `rendering/mesh.ts`, `obj.ts` | Cube/plane generators, minimal OBJ (`v/vn/f`), Uint16 indices |
 | Materials | `rendering/material.ts`, `MeshRef` | Legacy Phong fields (color/texture/shininess). **No PBR** |
 | Lights | `rendering/lights.ts`, `lightsystem.ts` | Dir + point + spot (v2.18) types, inverse-square + range cutoff, cone falloff, per-frame slot ranking; `LightSystem` binds ECS `Light` components (local-space spot aim) to the 4 upload slots. Point/spot are analytic only - no shadow maps for them |
@@ -140,6 +140,8 @@ Next 3 subsystems in priority order:
   18. ~~Scene v4: migration, per-entity recovery, additive scenes, UID overrides, full component round-trip~~ DONE (v2.19)
   19. ~~Debug console: central logger with system tags/stacks/folding, command registry, per-frame system error containment~~ DONE (v2.20)
   20. ~~Skeletal animation: skeletons, clips, GPU skinning, state machine + crossfade, events, root motion, two-bone IK~~ DONE (v2.21; GL skinning path needs browser confirmation)
+  21. ~~Post stack v2: 7 passes (grade, vignette, blur, bloom, ao, grain, sharpen) with offscreen ping-pong + composite, CPU reference math, serializable graph~~ DONE (v2.22; GL fx path needs browser confirmation)
+  22. ~~Editor UX: post stack replaces the old chain (backwards-compatible alias kept)~~ DONE (v2.22)
 Remaining future work (deferred until demanded by a real game): cascaded/point/spot
 shadows, skeletal animation, package manager, 2D renderer, net host migration.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,

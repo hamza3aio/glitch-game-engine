@@ -1,6 +1,6 @@
 import { Mat4 } from "../math/mat4.js";
 import { Vec3 } from "../math/vec3.js";
-import { FRAG_SRC, VERT_SRC, INST_FRAG_SRC, INST_VERT_SRC, PBR_FRAG_SRC, TERRAIN_FRAG_SRC, POST_VERT_SRC, POST_FRAG_SRC, SHADOW_FRAG_SRC, SKINNED_VERT_SRC, createProgram } from "./shader.js";
+import { FRAG_SRC, VERT_SRC, INST_FRAG_SRC, INST_VERT_SRC, PBR_FRAG_SRC, TERRAIN_FRAG_SRC, POST_VERT_SRC, POST_FRAG_SRC, FX_FRAG_SRC, SHADOW_FRAG_SRC, SKINNED_VERT_SRC, createProgram } from "./shader.js";
 import { MAX_BONES_PER_PALETTE, SkinnedMeshRegistry } from "./skinning.js";
 import { GpuMesh, boundsRadius, cubeData, planeData, type MeshData } from "./mesh.js";
 import { Texture2D } from "./texture.js";
@@ -10,6 +10,7 @@ import { InstancedMesh, FLOATS_PER_INSTANCE, MAX_BATCH, MIN_INSTANCES, composeIn
 import type { PointLight, SpotLight } from "./lights.js";
 import { rankLights } from "./lights.js";
 import { PostChain } from "./post.js";
+import { PostStack, type PostPassKind } from "./poststack.js";
 import { ShadowMap, fitDirectionalShadow, sphereInsideShadow, type ShadowFit } from "./shadowmap.js";
 import type { QualitySettings } from "../core/quality.js";
 import { TONE_MAP_MODES, type ToneMapMode } from "./tonemap.js";
@@ -41,6 +42,9 @@ const SPOT_UNIFORM_NAMES = ["uPointRange", "uSpotCount", "uPointDir", "uSpotCos"
 
 const SHADOW_TEXTURE_UNIT = 4; // 0..3 are used by the terrain splat/detail set
 
+// Offscreen effect modes (must match FX_FRAG_SRC branches).
+const FX_MODE: Record<string, number> = { blur: 0, bloom: 1, ao: 2, grain: 3, sharpen: 4 };
+
 // Output stage (Phase 2). All three are no-ops at their defaults, so turning
 // them on is always an explicit, opt-in change.
 export interface TonemapSettings {
@@ -64,6 +68,7 @@ export interface RenderStats {
   postDraws: number;
   shadowDraws: number;
   skinnedDraws: number;
+  fxDraws: number;
 }
 
 interface VisibleItem {
@@ -97,7 +102,7 @@ export class Renderer {
   groundColor: [number, number, number] = [0.12, 0.1, 0.09];
   ambientStrength = 1.0;
   materials = new MaterialDB();
-  readonly stats: RenderStats = { total: 0, drawn: 0, culled: 0, instancedDraws: 0, regularDraws: 0, pbrDraws: 0, postDraws: 0, shadowDraws: 0, skinnedDraws: 0 };
+  readonly stats: RenderStats = { total: 0, drawn: 0, culled: 0, instancedDraws: 0, regularDraws: 0, pbrDraws: 0, postDraws: 0, shadowDraws: 0, skinnedDraws: 0, fxDraws: 0 };
   /** Skinned meshes live outside the static mesh table (Phase 9). */
   skinned!: SkinnedMeshRegistry;
   private skinnedProgram!: WebGLProgram;
@@ -108,7 +113,9 @@ export class Renderer {
   private ploc: Record<string, WebGLUniformLocation | null> = {};
   private tloc: Record<string, WebGLUniformLocation | null> = {};
   private postloc: Record<string, WebGLUniformLocation | null> = {};
-  post = new PostChain();
+  post = new PostStack();
+  /** @deprecated legacy single-chain alias; prefer `post`. */
+  legacyPost = new PostChain();
   /** Render-resolution multiplier from the quality config (0.5..1). */
   pixelScale = 1;
   /** Master fog switch (quality config). */
@@ -127,6 +134,12 @@ export class Renderer {
   private sloc: Record<string, WebGLUniformLocation | null> = {};
   private siloc: Record<string, WebGLUniformLocation | null> = {};
   private postProgram!: WebGLProgram;
+  private fxProgram!: WebGLProgram;
+  private fxloc: Record<string, WebGLUniformLocation | null> = {};
+  private fxFB: WebGLFramebuffer | null = null;
+  private fxTex: WebGLTexture | null = null;
+  private fxW = 0;
+  private fxH = 0;
   private sceneFB: WebGLFramebuffer | null = null;
   private sceneTex: WebGLTexture | null = null;
   private sceneDepth: WebGLRenderbuffer | null = null;
@@ -194,6 +207,10 @@ export class Renderer {
       this.tloc[name] = gl.getUniformLocation(this.terrainProgram, name);
     }
     this.postProgram = createProgram(gl, POST_VERT_SRC, POST_FRAG_SRC);
+    this.fxProgram = createProgram(gl, POST_VERT_SRC, FX_FRAG_SRC);
+    for (const name of ["uScene", "uTexel", "uMode", "uRadius", "uTaps", "uThreshold", "uIntensity", "uSeed"]) {
+      this.fxloc[name] = gl.getUniformLocation(this.fxProgram, name);
+    }
     this.skinned = new SkinnedMeshRegistry(gl);
     this.skinnedProgram = createProgram(gl, SKINNED_VERT_SRC, FRAG_SRC);
     for (const name of [
@@ -209,7 +226,7 @@ export class Renderer {
     ]) {
       this.kloc[name] = gl.getUniformLocation(this.skinnedProgram, name);
     }
-    for (const name of ["uScene", "uExposure", "uContrast", "uSaturation", "uVignette"]) {
+    for (const name of ["uScene", "uExposure", "uContrast", "uSaturation", "uTemperature", "uVignette", "uVignetteSoft"]) {
       this.postloc[name] = gl.getUniformLocation(this.postProgram, name);
     }
     // Shadow depth pass reuses the lit vertex stages; only the fragment
@@ -666,6 +683,7 @@ export class Renderer {
     this.stats.instancedDraws = 0;
     this.stats.regularDraws = 0;
     this.stats.postDraws = 0;
+    this.stats.fxDraws = 0;
     this.stats.shadowDraws = 0;
     // Shadow pass first, while the default framebuffer is still bound.
     if (this.shadows.enabled && this.lightIntensity > 0.01) {
@@ -791,20 +809,76 @@ export class Renderer {
   private compositePost() {
     const gl = this.gl;
     if (!this.sceneTex) return;
+    // Offscreen passes run first, ping-ponging between two targets.
+    let source = this.sceneTex;
+    const resolved = this.post.resolve();
+    const offscreen = resolved.filter((p) => p.offscreen);
+    if (offscreen.length > 0) {
+      gl.disable(gl.DEPTH_TEST);
+      gl.useProgram(this.fxProgram);
+      for (const p of offscreen) {
+        this.ensureFxTarget();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.fxFB);
+        gl.viewport(0, 0, this.fxW, this.fxH);
+        this.bindTex(source, 0);
+        gl.uniform1i(this.fxloc.uScene, 0);
+        gl.uniform2f(this.fxloc.uTexel, 1 / this.fxW, 1 / this.fxH);
+        gl.uniform1i(this.fxloc.uMode, FX_MODE[p.kind]);
+        const o = p.options.opts as unknown as Record<string, number>;
+        gl.uniform1f(this.fxloc.uRadius, o.radius ?? 1);
+        gl.uniform1f(this.fxloc.uTaps, o.taps ?? 5);
+        gl.uniform1f(this.fxloc.uThreshold, p.kind === "grain" ? o.amount : (o.threshold ?? 0));
+        gl.uniform1f(this.fxloc.uIntensity, p.kind === "ao" ? o.strength : p.kind === "sharpen" ? o.amount : (o.intensity ?? 1));
+        gl.uniform1f(this.fxloc.uSeed, o.seed ?? 0);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        this.stats.fxDraws++;
+        source = this.fxTex!;
+      }
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.disable(gl.DEPTH_TEST);
     gl.useProgram(this.postProgram);
     const u = this.post.uniforms();
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.sceneTex);
+    this.bindTex(source, 0);
     gl.uniform1i(this.postloc.uScene, 0);
     gl.uniform1f(this.postloc.uExposure, u.exposure);
     gl.uniform1f(this.postloc.uContrast, u.contrast);
     gl.uniform1f(this.postloc.uSaturation, u.saturation);
+    gl.uniform1f(this.postloc.uTemperature, u.temperature);
     gl.uniform1f(this.postloc.uVignette, u.vignette);
+    gl.uniform1f(this.postloc.uVignetteSoft, u.vignetteSoftness);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.enable(gl.DEPTH_TEST);
     this.stats.postDraws++;
+  }
+
+  private bindTex(tex: WebGLTexture, unit: number): void {
+    const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+  }
+
+  /** Second (ping-pong) target for offscreen post passes. */
+  private ensureFxTarget(): void {
+    const gl = this.gl;
+    const w = Math.max(1, this.canvas.width);
+    const h = Math.max(1, this.canvas.height);
+    if (this.fxFB && this.fxTex && w === this.fxW && h === this.fxH) return;
+    if (this.fxFB) gl.deleteFramebuffer(this.fxFB);
+    if (this.fxTex) gl.deleteTexture(this.fxTex);
+    this.fxW = w;
+    this.fxH = h;
+    this.fxTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.fxTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    this.fxFB = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fxFB);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.fxTex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 }

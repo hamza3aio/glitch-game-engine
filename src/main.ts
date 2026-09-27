@@ -434,10 +434,14 @@ async function build() {
     const first = findPath(navGrid, PATROL[0].x, PATROL[0].z, PATROL[1].x, PATROL[1].z);
     if (first) setPath(world, npcABody, first, 2.2);
   }
-  // post-processing showcase: subtle night-shift grade + vignette.
+  // post stack showcase: bloom + film grain + a night-shift grade + vignette.
   renderer.post.enabled = true;
+  renderer.post.add("bloom");
+  renderer.post.configure(0, { threshold: 0.72, intensity: 0.5, radius: 2 });
+  renderer.post.add("grain");
+  renderer.post.configure(1, { amount: 0.03, seed: 7 });
   renderer.post.add("grade");
-  renderer.post.setGrade(0, { contrast: 1.06, saturation: 1.08 });
+  renderer.post.configure(2, { contrast: 1.06, saturation: 1.08 });
   renderer.post.add("vignette");
   // Shadow mapping showcase (toggle with H).
   renderer.shadows.enabled = true;
@@ -455,7 +459,7 @@ async function build() {
     if (!editor.visible) editor.toggle();
   }
   await loader.hide();
-  menu.show(true, "v2.21.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
+  menu.show(true, "v2.22.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
 }
 
 async function enter() {

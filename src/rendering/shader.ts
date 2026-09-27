@@ -496,16 +496,87 @@ uniform sampler2D uScene;
 uniform float uExposure;
 uniform float uContrast;
 uniform float uSaturation;
+uniform float uTemperature;
 uniform float uVignette;
+uniform float uVignetteSoft;
 out vec4 outColor;
 void main() {
   vec3 col = texture(uScene, vUV).rgb;
   col *= exp2(uExposure);
+  col += vec3(uTemperature * 0.08, 0.0, -uTemperature * 0.08);
   col = (col - 0.5) * uContrast + 0.5;
   float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
   col = vec3(luma) + (col - vec3(luma)) * uSaturation;
   vec2 c = vUV * 2.0 - 1.0;
-  float d = length(c) / 1.41421356;
-  col *= clamp(1.0 - uVignette * d * d, 0.0, 1.0);
+  float d = min(1.0, length(c) / 1.41421356);
+  float start = clamp(uVignetteSoft, 0.0, 1.0);
+  if (d > start) {
+    float k = min(1.0, (d - start) / max(1e-6, 1.0 - start));
+    col *= clamp(1.0 - uVignette * k * k, 0.0, 1.0);
+  }
+  outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+// Offscreen effects: one program branching on uMode. Each branch mirrors a
+// CPU reference function in rendering/poststack.ts.
+//   0 blur, 1 bloom (bright-pass + blur), 2 ao (8-tap ring),
+//   3 grain (uThreshold is reused as the amount), 4 sharpen.
+export const FX_FRAG_SRC = `#version 300 es
+precision mediump float;
+in vec2 vUV;
+uniform sampler2D uScene;
+uniform vec2 uTexel;
+uniform int uMode;
+uniform float uRadius;
+uniform float uTaps;
+uniform float uThreshold;
+uniform float uIntensity;
+uniform float uSeed;
+out vec4 outColor;
+
+vec3 brightPass(vec3 c) {
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  if (l <= uThreshold) return vec3(0.0);
+  return c * ((l - uThreshold) / max(1e-6, l));
+}
+
+void main() {
+  vec3 src = texture(uScene, vUV).rgb;
+  vec3 col = src;
+  if (uMode == 0 || uMode == 1) {
+    vec3 sum = vec3(0.0);
+    float wsum = 0.0;
+    int half = int(uTaps * 0.5);
+    for (int i = -8; i <= 8; i++) {
+      if (i < -half || i > half) continue;
+      vec3 s = texture(uScene, vUV + vec2(float(i) * uRadius * uTexel.x, 0.0)).rgb;
+      if (uMode == 1) s = brightPass(s);
+      sum += s;
+      wsum += 1.0;
+    }
+    vec3 blurred = sum / max(1e-6, wsum);
+    col = (uMode == 1) ? src + blurred * uIntensity : blurred;
+  } else if (uMode == 2) {
+    float acc = 0.0;
+    for (int i = 0; i < 8; i++) {
+      float a = float(i) * 0.78539816;
+      vec2 o = vec2(cos(a), sin(a)) * uRadius;
+      acc += dot(texture(uScene, vUV + o).rgb, vec3(0.2126, 0.7152, 0.0722));
+    }
+    acc *= 0.125;
+    float c = dot(src, vec3(0.2126, 0.7152, 0.0722));
+    col = src * clamp(1.0 - uIntensity * max(0.0, acc - c), 0.0, 1.0);
+  } else if (uMode == 3) {
+    float n = fract(sin(dot(vUV * 1024.0 + uSeed, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+    col = clamp(src + vec3(n * uThreshold), 0.0, 1.0);
+  } else if (uMode == 4) {
+    vec3 n = (
+      texture(uScene, vUV + vec2(uTexel.x, 0.0) * uRadius).rgb +
+      texture(uScene, vUV - vec2(uTexel.x, 0.0) * uRadius).rgb +
+      texture(uScene, vUV + vec2(0.0, uTexel.y) * uRadius).rgb +
+      texture(uScene, vUV - vec2(0.0, uTexel.y) * uRadius).rgb
+    ) * 0.25;
+    col = clamp(src + (src - n) * uIntensity, 0.0, 1.0);
+  }
   outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }`;
