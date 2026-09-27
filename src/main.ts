@@ -525,6 +525,7 @@ async function build() {
     editor = new EditorOverlay(world, document.getElementById("ui")!, {
       addTex, projectPath: () => params.get("project"), mats: renderer.materials,
       fx: () => fx, shadows: renderer.shadows, openConsole,
+      onInfo: (msg) => engine.log.info("editor", msg),
       viewport: () => ({
         view: renderer.camera.view(),
         proj: renderer.camera.projection(canvas.width / Math.max(1, canvas.height)),
