@@ -73,6 +73,28 @@ export function registerDefaultCommands(reg: CommandRegistry, engine: Engine, wo
     };
   });
 
+  reg.register("imports", (args) => {
+    const sub = args.trim().toLowerCase();
+    const pipe = engine.imports;
+    if (sub === "pump") {
+      const n = pipe.pump(50);
+      return { ok: true, output: `processed ${n} job(s), ${pipe.pending} pending` };
+    }
+    if (sub === "run") {
+      const n = pipe.runAll();
+      return { ok: true, output: `processed ${n} job(s), ${pipe.pending} pending` };
+    }
+    const jobs = pipe.jobs.slice(-10).reverse();
+    if (jobs.length === 0) return { ok: true, output: "import queue empty (drop .obj/.gltf/.glb onto the asset browser)" };
+    return {
+      ok: true,
+      output: [
+        `${pipe.pending} pending · ${engine.assets.count} assets in the database`,
+        ...jobs.map((j) => `  ${j.name} — ${j.status}${j.error ? `: ${j.error}` : ` ${Math.round(j.progress * 100)}%`}`),
+      ].join("\n"),
+    };
+  });
+
   reg.register("net", (args) => {
     const sub = args.trim().toLowerCase();
     if (!deps.net) return { ok: false, output: "no net session running in this build" };

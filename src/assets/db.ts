@@ -159,6 +159,16 @@ export class AssetDB {
     return this.assets.get(guid);
   }
 
+  /** All registered assets, in insertion order (optionally one kind). */
+  list(kind?: AssetKind): AssetMeta[] {
+    const all = [...this.assets.values()];
+    return kind ? all.filter((a) => a.kind === kind) : all;
+  }
+
+  has(guid: string): boolean {
+    return this.assets.has(guid);
+  }
+
   findByPath(path: string): AssetMeta | undefined {
     const guid = this.byPath.get(path);
     return guid !== undefined ? this.assets.get(guid) : undefined;

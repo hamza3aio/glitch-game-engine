@@ -10,6 +10,7 @@ import { AssetDB } from "../assets/db.js";
 import { QualitySettings } from "./quality.js";
 import { Logger } from "../debug/logger.js";
 import { PluginHost } from "../plugins/host.js";
+import { ImportPipeline } from "../assets/pipeline.js";
 
 export class Engine {
   world = new World();
@@ -24,6 +25,8 @@ export class Engine {
   quality = QualitySettings.load();
   /** Central log + error sink (Phase 19). */
   log = new Logger({ mirror: false });
+  /** Import queue for OBJ / glTF / GLB (Phase 7). */
+  imports = new ImportPipeline({ db: this.assets, log: this.log });
   /** Plugin host (Phase 22): systems/importers/panels from extensions. */
   plugins = new PluginHost({ onError: (name, err) => {
     this.log.error("plugins", `"${name}" failed`, undefined, err);
@@ -58,6 +61,7 @@ export class Engine {
         this.profiler.scoped("physics", () => this.physics.step(this.world, dt));
         this.profiler.scoped("triggers", () => this.triggers.update(this.world));
         this.profiler.scoped("plugins", () => { this.plugins.update(dt, this.world); });
+        this.profiler.scoped("imports", () => { this.imports.pump(2); });
         this.profiler.gauge("entities", this.world.count());
       },
       () => {

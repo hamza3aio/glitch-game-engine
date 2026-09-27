@@ -49,9 +49,8 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Prefabs/kit | `scene/{prefab,prefabs,citykit}.ts` | Spawn helpers + box-built street props; prefab save/parse/instantiate with namespaced UIDs and per-instance overrides |
 | Actors | `scene/actor.ts` | 7-box cartoon rigs, painted faces, sine walk pose. No skeleton |
 | Animation | `anim/skeleton.ts`, `anim/animator.ts`, `rendering/skinning.ts` (NEW, v2.21) | Skeletons + bind inverses, keyframe clips (linear/step), pose sampling, GPU skinning (4 influences, 32-bone palette), state machine with crossfade, animation events, root motion, two-bone IK. No retargeting/cloth |
-| Assets | `assets/loader.ts` | Cached fetch for texture/OBJ/JSON. Not wired to editor |
-| Asset DB | `assets/db.ts` (NEW, v2.15) | GUID registry, per-kind import settings, dependency graph + cycle guard, versioned JSON, exposed as `Engine.assets` |
-| Editor | `editor/overlay.ts`, `editor/console.ts` | F9 panel: hierarchy list, transform/color inspector, add/delete, pause, project save / file fallback; `~` opens the debug console |
+| Assets | `assets/loader.ts`, `assets/db.ts`, `assets/pipeline.ts` | Cached fetch for texture/OBJ/JSON. Asset DB: GUID registry, per-kind import settings, dependency graph + cycle guard, versioned JSON, exposed as `Engine.assets`. v2.25 adds the import pipeline: content hashing, cooperative queue, OBJ + glTF 2.0/GLB importers, reimport-on-change, `imports` command, asset browser panel (drag-drop). FBX/texture decode/audio transcode are NOT implemented |
+| Editor | `editor/overlay.ts`, `editor/console.ts`, `editor/assetbrowser.ts` | F9 panel: hierarchy list, transform/color inspector, add/delete, pause, project save / file fallback; `~` opens the debug console; asset browser with search/kind filter, settings + dependency view, reimport/remove, drag-drop import |
 | Debug | `debug/logger.ts`, `debug/commands.ts` (NEW, v2.20) | Central log + error sink with system tags, stacks, bounded/folded buffer, level+text filters; command registry with 11 real commands (stats, quality, shadows, entities, errors, fov, …). Game systems that throw are caught per frame and reported, never fatal |
 | UI | `ui/{menu,hud}.ts` | Main-menu overlay with hooks, FPS/message HUD |
 | Net | `net/p2p.ts`, `net/netcore.ts` | Serverless WebRTC listen-server (host authority, snapshots, 4 max). **Untested 2-machine**. v2.24 adds a transport-agnostic replication core: net IDs, quantized snapshots with interpolation buffer, interest management, RPC channel, client prediction with reconciliation, loopback transport for testing |
@@ -145,6 +144,7 @@ Next 3 subsystems in priority order:
   22. ~~Editor UX: post stack replaces the old chain (backwards-compatible alias kept)~~ DONE (v2.22)
   23. ~~Plugin/package architecture: versioned manifests, dependency order + cycle detection, 8 extension kinds, rollback on failure, disk loading via the Electron bridge~~ DONE (v2.23)
   24. ~~Networking foundations: net IDs, quantized snapshots, interpolation buffer, interest management, RPC channel, client prediction with reconciliation, loopback transport, `net` command~~ DONE (v2.24)
+  25. ~~Asset import pipeline: content hashing, cooperative queue, OBJ + glTF/GLB importers, reimport-on-change, asset browser panel, `imports` command~~ DONE (v2.25; GLB/OBJ browser upload needs confirmation)
 Remaining future work (deferred until demanded by a real game): cascaded/point/spot
 shadows, skeletal animation, package manager, 2D renderer, net host migration.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,

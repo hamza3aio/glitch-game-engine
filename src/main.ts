@@ -19,6 +19,7 @@ import { SAMPLE_MANIFEST, type PluginSystem } from "./plugins/host.js";
 import { loadPlugins } from "./plugins/loader.js";
 import { LoopbackTransport, NetClient, NetServer } from "./net/netcore.js";
 import { World } from "./ecs/world.js";
+import { mountAssetBrowser } from "./editor/assetbrowser.js";
 import { buildActor, poseActor, type ActorRig } from "./scene/actor.js";
 import { ParticleSystem, type EmitterDef } from "./fx/particles.js";
 import { ScriptRuntime } from "./script/script.js";
@@ -532,9 +533,24 @@ async function build() {
       }),
     });
     if (!editor.visible) editor.toggle();
+    // Phase 7: asset browser over the same database the scene uses.
+    mountAssetBrowser(document.getElementById("ui")!, engine.assets, engine.imports, {
+      quality: engine.quality,
+      importFile: (name, data) => {
+        const id = engine.imports.enqueue(name, data);
+        if (id === null) engine.log.warn("assets", `nothing imported for "${name}"`);
+      },
+      reimport: (meta) => {
+        engine.log.info("assets", `reimport "${meta.path}" needs the host to re-read the file`);
+      },
+      remove: (meta) => {
+        engine.assets.remove(meta.guid, true);
+        engine.log.info("assets", `removed "${meta.path}"`);
+      },
+    });
   }
   await loader.hide();
-  menu.show(true, "v2.24.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
+  menu.show(true, "v2.25.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
 }
 
 async function enter() {
