@@ -12,6 +12,9 @@ import { makeSpot } from "./rendering/lights.js";
 import { CommandRegistry } from "./debug/logger.js";
 import { registerDefaultCommands } from "./debug/commands.js";
 import { mountConsole, type ConsoleView } from "./debug/console.js";
+import { AnimatorSystem, clipKey, makeAnimator, makeAnimEntity, type ClipBank } from "./anim/animator.js";
+import { registerDemoCharacter } from "./anim/demo.js";
+import { limbColumn } from "./rendering/skinning.js";
 import { buildActor, poseActor, type ActorRig } from "./scene/actor.js";
 import { ParticleSystem, type EmitterDef } from "./fx/particles.js";
 import { ScriptRuntime } from "./script/script.js";
@@ -65,6 +68,14 @@ let scriptErrorShown = 0;
 scripts.onError = (e) => engine.log.error("script", e.message, { entity: e.entity });
 // Debug console (Phase 19): logger + command registry + DOM panel.
 const commands = registerDefaultCommands(new CommandRegistry(), engine, world);
+
+// Animation (Phase 9): one demo rig, driven by the state machine.
+const animBank: ClipBank = { skeletons: new Map(), clips: new Map(), machines: new Map() };
+registerDemoCharacter(animBank);
+const animators = new AnimatorSystem(world, animBank);
+animators.onEvent = (e) => engine.log.info("anim", `event ${e.name} at ${e.time.toFixed(2)}s`);
+// Set by the movement code; drives the walk/idle state machine.
+let movingPlayer = false;
 let consoleView: ConsoleView | null = null;
 const openConsole = () => {
   if (consoleView) {
@@ -395,6 +406,26 @@ async function build() {
   padSpot = padSpotLight;
   renderer.spotLights.push(padSpotLight);
   resetShift();
+  // Phase 9: a skinned, state-machine-driven character standing in the scene.
+  {
+    const reg = registerDemoCharacter(animBank);
+    // One limb column per bone, weighted between the bone and its parent so
+    // the joints bend.
+    const parts: { verts: ReturnType<typeof limbColumn>["verts"]; indices: number[]; color: [number, number, number] }[] = [];
+    for (let b = 0; b < reg.bones.length; b++) {
+      const parent = reg.bones[b].parent;
+      const col = limbColumn(b, 0.09, 0.18, 0, parent >= 0 ? parent : -1, 0.35);
+      parts.push({ ...col, color: b === 2 ? [0.9, 0.75, 0.6] : [0.3, 0.45, 0.7] });
+    }
+    for (const p of parts) {
+      const id = `skinned-${Math.random().toString(36).slice(2, 8)}`;
+      renderer.skinned.register(id, p.verts, p.indices);
+      const e = makeAnimEntity(world, 10, 0, 8);
+      world.add(e, "mesh", { meshId: id, color: p.color });
+      animators.attach(e, makeAnimator("demo-skel", "demo-machine"));
+    }
+    renderer.onSkinProvider((id) => animators.paletteOf(id));
+  }
   // NPC-A patrols the block on a baked navmesh (live pathfinding demo).
   navGrid = bakeNavmesh(world, { minX: -30, maxX: 30, minZ: -20, maxZ: 20, cell: 1 });
   npcABody = world.create();
@@ -424,7 +455,7 @@ async function build() {
     if (!editor.visible) editor.toggle();
   }
   await loader.hide();
-  menu.show(true, "v2.20.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
+  menu.show(true, "v2.21.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
 }
 
 async function enter() {
@@ -483,6 +514,7 @@ engine.addSystem((dt) => {
     if (wasAir && rb.grounded) audio.land();
     if (actions.reset()) resetShift();
     const moving = Math.abs(wishX) + Math.abs(wishZ) > 0.1;
+    movingPlayer = moving;
     if (moving) {
       t.rotationY = Math.atan2(wishX, wishZ);
       walkPhase += dt * 9;
@@ -545,6 +577,10 @@ engine.addSystem((dt) => {
     stickBlob(world, blobA, ax, 0, 6);
   }
   poseActor(world, npcB, 6, 0, -6, Math.PI, npcPhase, false);
+  // Phase 9: advance the skinned demo character and point the renderer at
+  // the bone palette it produces.
+  animators.update(dt, () => (movingPlayer ? { stopped: false } : { stopped: true }));
+  animators.drainEvents();
   // the spot sways over the pad so the cone falloff is visible in motion
   if (padSpot) padSpot.position.set(6 + Math.sin(npcPhase * 0.5) * 3, 9, -6 + Math.cos(npcPhase * 0.5) * 3);
   scripts.update(dt);

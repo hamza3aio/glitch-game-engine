@@ -109,6 +109,44 @@ vec3 tonemapOut(vec3 c) {
 
 export const TONEMAP_UNIFORMS = "uniform int uTonemap;\nuniform float uExposure;\nuniform float uGamma;";
 
+// Skinned variant: up to 4 bone influences per vertex (locations 9-10),
+// blended against a per-entity bone matrix palette. uBoneCount bounds the
+// loop. The fragment stage is the shared lit path, so a skinned mesh shades
+// identically to a static one.
+export const SKINNED_VERT_SRC = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNormal;
+layout(location=2) in vec2 aUV;
+layout(location=9) in vec4 aJoints;
+layout(location=10) in vec4 aWeights;
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProj;
+uniform float uUVScale;
+uniform mat4 uPalette[32];
+uniform int uBoneCount;
+out vec3 vNormal;
+out vec3 vWorldPos;
+out vec2 vUV;
+void main() {
+  vec4 pos = vec4(aPos, 1.0);
+  vec3 nrm = aNormal;
+  for (int i = 0; i < 4; i++) {
+    float w = aWeights[i];
+    if (w <= 0.0) continue;
+    int b = int(aJoints[i]);
+    if (b < 0 || b >= uBoneCount) continue;
+    mat4 m = uPalette[b];
+    pos = mix(pos, m * pos, w);
+    nrm = mat3(m) * nrm;
+  }
+  vec4 w = uModel * pos;
+  vWorldPos = w.xyz;
+  vNormal = mat3(uModel) * nrm;
+  vUV = aUV * uUVScale;
+  gl_Position = uProj * uView * w;
+}`;
+
 export const FRAG_SRC = `#version 300 es
 precision mediump float;
 in vec3 vNormal;

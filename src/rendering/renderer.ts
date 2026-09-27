@@ -1,6 +1,7 @@
 import { Mat4 } from "../math/mat4.js";
 import { Vec3 } from "../math/vec3.js";
-import { FRAG_SRC, VERT_SRC, INST_FRAG_SRC, INST_VERT_SRC, PBR_FRAG_SRC, TERRAIN_FRAG_SRC, POST_VERT_SRC, POST_FRAG_SRC, SHADOW_FRAG_SRC, createProgram } from "./shader.js";
+import { FRAG_SRC, VERT_SRC, INST_FRAG_SRC, INST_VERT_SRC, PBR_FRAG_SRC, TERRAIN_FRAG_SRC, POST_VERT_SRC, POST_FRAG_SRC, SHADOW_FRAG_SRC, SKINNED_VERT_SRC, createProgram } from "./shader.js";
+import { MAX_BONES_PER_PALETTE, SkinnedMeshRegistry } from "./skinning.js";
 import { GpuMesh, boundsRadius, cubeData, planeData, type MeshData } from "./mesh.js";
 import { Texture2D } from "./texture.js";
 import { MaterialDB, resolveMaterial, type PBRMaterial } from "./materials.js";
@@ -62,6 +63,7 @@ export interface RenderStats {
   pbrDraws: number;
   postDraws: number;
   shadowDraws: number;
+  skinnedDraws: number;
 }
 
 interface VisibleItem {
@@ -95,7 +97,12 @@ export class Renderer {
   groundColor: [number, number, number] = [0.12, 0.1, 0.09];
   ambientStrength = 1.0;
   materials = new MaterialDB();
-  readonly stats: RenderStats = { total: 0, drawn: 0, culled: 0, instancedDraws: 0, regularDraws: 0, pbrDraws: 0, postDraws: 0, shadowDraws: 0 };
+  readonly stats: RenderStats = { total: 0, drawn: 0, culled: 0, instancedDraws: 0, regularDraws: 0, pbrDraws: 0, postDraws: 0, shadowDraws: 0, skinnedDraws: 0 };
+  /** Skinned meshes live outside the static mesh table (Phase 9). */
+  skinned!: SkinnedMeshRegistry;
+  private skinnedProgram!: WebGLProgram;
+  private kloc: Record<string, WebGLUniformLocation | null> = {};
+  private paletteScratch = new Float32Array(MAX_BONES_PER_PALETTE * 16);
   private loc: Record<string, WebGLUniformLocation | null> = {};
   private iloc: Record<string, WebGLUniformLocation | null> = {};
   private ploc: Record<string, WebGLUniformLocation | null> = {};
@@ -187,6 +194,21 @@ export class Renderer {
       this.tloc[name] = gl.getUniformLocation(this.terrainProgram, name);
     }
     this.postProgram = createProgram(gl, POST_VERT_SRC, POST_FRAG_SRC);
+    this.skinned = new SkinnedMeshRegistry(gl);
+    this.skinnedProgram = createProgram(gl, SKINNED_VERT_SRC, FRAG_SRC);
+    for (const name of [
+      "uModel", "uUVScale", "uView", "uProj", "uPalette", "uBoneCount",
+      "uColor", "uLightDir", "uLightIntensity",
+      "uCamPos", "uShininess", "uMap", "uUseTexture",
+      "uPointCount", "uPointPos", "uPointColor",
+      "uFogColor", "uFogNear", "uFogFar",
+      "uTonemap", "uExposure", "uGamma",
+      "uPointRange", "uSpotCount", "uPointDir", "uSpotCos",
+      "uShadowMap", "uShadowMatrix", "uShadowTexelUV", "uShadowTexel",
+      "uShadowBias", "uShadowNormalBias", "uShadowStrength", "uEnableShadows",
+    ]) {
+      this.kloc[name] = gl.getUniformLocation(this.skinnedProgram, name);
+    }
     for (const name of ["uScene", "uExposure", "uContrast", "uSaturation", "uVignette"]) {
       this.postloc[name] = gl.getUniformLocation(this.postProgram, name);
     }
@@ -247,8 +269,7 @@ export class Renderer {
     this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  private uploadShared(loc: Record<string, WebGLUniformLocation | null>, view: Mat4, proj: Mat4) {
-    const gl = this.gl;
+  private uploadShared(loc: Record<string, WebGLUniformLocation | null>, view: Mat4, proj: Mat4) {    const gl = this.gl;
     gl.uniformMatrix4fv(loc.uView, false, view.elements);
     gl.uniformMatrix4fv(loc.uProj, false, proj.elements);
     this.uploadShadow(loc);
@@ -455,6 +476,46 @@ export class Renderer {
     });
   }
 
+  /**
+   * Registers a bone palette provider. Every frame, each entity that has
+   * both a `skinned` mesh and an animator draws through SKINNED_VERT_SRC.
+   * `provider(entityId)` returns the bone matrices in world space.
+   */
+  onSkinProvider(provider: (e: Entity) => Mat4[] | null): void {
+    this.skinProvider = provider;
+  }
+  private skinProvider: ((e: Entity) => Mat4[] | null) | null = null;
+
+  private drawSkinned(e: Entity, t: Transform, m: MeshRef, view: Mat4, proj: Mat4): boolean {
+    if (!this.skinProvider) return false;
+    const palette = this.skinProvider(e);
+    if (!palette || palette.length === 0) return false;
+    const gpu = this.skinned.get(m.meshId);
+    if (!gpu) return false;
+    const gl = this.gl;
+    const n = Math.min(palette.length, MAX_BONES_PER_PALETTE);
+    for (let i = 0; i < n; i++) {
+      this.paletteScratch.set(palette[i].elements, i * 16);
+    }
+    gl.useProgram(this.skinnedProgram);
+    this.uploadShared(this.kloc, view, proj);
+    const model = new Mat4().translate(t.position).rotateY(t.rotationY).scale(t.scale);
+    gl.uniformMatrix4fv(this.kloc.uModel, false, model.elements);
+    gl.uniform4fv(this.kloc.uPalette, this.paletteScratch.subarray(0, n * 16));
+    gl.uniform1i(this.kloc.uBoneCount, n);
+    gl.uniform3fv(this.kloc.uColor, m.color as unknown as Float32List);
+    gl.uniform1f(this.kloc.uShininess, m.shininess ?? 32);
+    gl.uniform1f(this.kloc.uUVScale, m.uvScale ?? 1);
+    const tex = (m.textureId && this.textures.get(m.textureId)) || this.textures.get("white")!;
+    tex.bind(0);
+    gl.uniform1i(this.kloc.uUseTexture, m.textureId ? 1 : 0);
+    gpu.draw();
+    this.stats.skinnedDraws++;
+    this.stats.regularDraws++;
+    this.stats.drawn++;
+    return true;
+  }
+
   // Exposure / tone map / gamma for any lit program.
   private uploadTonemap(loc: Record<string, WebGLUniformLocation | null>) {
     const gl = this.gl;
@@ -629,18 +690,26 @@ export class Renderer {
 
     // Gather visible entities (bounding sphere vs frustum).
     // PBR-material and terrain entities bypass batching (own programs).
-    const visible: (VisibleItem & { meshId: string; textureId?: string })[] = [];
+    const visible: (VisibleItem & { meshId: string; textureId?: string; entity: Entity })[] = [];
+    const skinned: { e: Entity; t: Transform; m: MeshRef }[] = [];
     const pbrItems: { t: Transform; m: MeshRef; mat: PBRMaterial }[] = [];
     const terrainItems: { t: Transform; m: MeshRef; tm: TerrainMaterial }[] = [];
     for (const e of world.query("transform", "mesh") as Entity[]) {
       this.stats.total++;
       const t = world.get<Transform>(e, "transform")!;
       const m = world.get<MeshRef>(e, "mesh")!;
-      if (!this.meshes.has(m.meshId)) continue;
-      const bound = this.meshBounds.get(m.meshId) ?? 1;
+      const isSkinned = this.skinned.has(m.meshId);
+      if (!isSkinned && !this.meshes.has(m.meshId)) continue;
+      const bound = isSkinned
+        ? this.skinned.boundsRadiusOf(m.meshId)
+        : (this.meshBounds.get(m.meshId) ?? 1);
       const r = bound * Math.max(t.scale.x, t.scale.y, t.scale.z);
       if (!testSphere(planes, t.position.x, t.position.y, t.position.z, r)) {
         this.stats.culled++;
+        continue;
+      }
+      if (isSkinned) {
+        skinned.push({ e, t, m });
         continue;
       }
       if (m.terrain) {
@@ -649,7 +718,7 @@ export class Renderer {
       }
       const mat = resolveMaterial(m, this.materials);
       if (mat) pbrItems.push({ t, m, mat });
-      else visible.push({ t, m, meshId: m.meshId, textureId: m.textureId });
+      else visible.push({ t, m, meshId: m.meshId, textureId: m.textureId, entity: e });
     }
 
     const groups = groupInstances(visible);
@@ -663,6 +732,15 @@ export class Renderer {
       } else {
         for (const { t, m } of items) this.drawSingle(t, m);
       }
+    }
+    for (const { e, t, m } of skinned) {
+      if (!this.drawSkinned(e, t, m, view, proj)) {
+        // No palette available (no animator): hold the rest pose rather than
+        // leaving the entity invisible.
+        this.drawSingle(t, m);
+      }
+      gl.useProgram(this.program);
+      this.uploadShared(this.loc, view, proj);
     }
     for (const { t, m, mat } of pbrItems) this.drawPBR(t, m, mat, view, proj);
     for (const { t, m, tm } of terrainItems) this.drawTerrain(t, m, tm, view, proj);

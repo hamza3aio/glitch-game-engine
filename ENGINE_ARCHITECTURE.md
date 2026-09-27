@@ -48,6 +48,7 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Scene | `scene/scene.ts` | v4 JSON: versioned + migrated (v1/v2/v3 upgrade field-by-field), per-entity recovery, additive load, UID overrides, full collider/light/terrain/spin/trigger/rigidbody state; deterministic 2-space output |
 | Prefabs/kit | `scene/{prefab,prefabs,citykit}.ts` | Spawn helpers + box-built street props; prefab save/parse/instantiate with namespaced UIDs and per-instance overrides |
 | Actors | `scene/actor.ts` | 7-box cartoon rigs, painted faces, sine walk pose. No skeleton |
+| Animation | `anim/skeleton.ts`, `anim/animator.ts`, `rendering/skinning.ts` (NEW, v2.21) | Skeletons + bind inverses, keyframe clips (linear/step), pose sampling, GPU skinning (4 influences, 32-bone palette), state machine with crossfade, animation events, root motion, two-bone IK. No retargeting/cloth |
 | Assets | `assets/loader.ts` | Cached fetch for texture/OBJ/JSON. Not wired to editor |
 | Asset DB | `assets/db.ts` (NEW, v2.15) | GUID registry, per-kind import settings, dependency graph + cycle guard, versioned JSON, exposed as `Engine.assets` |
 | Editor | `editor/overlay.ts`, `editor/console.ts` | F9 panel: hierarchy list, transform/color inspector, add/delete, pause, project save / file fallback; `~` opens the debug console |
@@ -66,8 +67,9 @@ v2.16; cascades + point/spot shadow maps still missing), ~~instancing + frustum
 culling~~ (done v2.3), collision layers/masks, sphere/capsule colliders, input
 actions/rebinding, audio samples + 3D pan, ~~asset DB with import settings~~
 (done v2.15), undo/redo + gizmos.
-P2: skeletal animation, particles, terrain, navmesh, scripting (Lua vs C#
-decision), post-processing stack, profilers, package manager, 2D renderer.
+P2: ~~skeletal animation~~ (done v2.21), ~~particles~~, ~~terrain~~, ~~navmesh~~,
+~~scripting~~ (Lua), ~~post-processing~~ (grade/vignette), ~~profilers~~ (CPU),
+package manager, 2D renderer.
 
 ## 4. Technical debt (acknowledged, scheduled)
 
@@ -137,6 +139,7 @@ Next 3 subsystems in priority order:
   17. ~~Spot lights + light types (cone falloff, range cutoff, slot ranking, ECS Light component, local-space aim)~~ DONE (v2.18; GL path needs browser confirmation)
   18. ~~Scene v4: migration, per-entity recovery, additive scenes, UID overrides, full component round-trip~~ DONE (v2.19)
   19. ~~Debug console: central logger with system tags/stacks/folding, command registry, per-frame system error containment~~ DONE (v2.20)
+  20. ~~Skeletal animation: skeletons, clips, GPU skinning, state machine + crossfade, events, root motion, two-bone IK~~ DONE (v2.21; GL skinning path needs browser confirmation)
 Remaining future work (deferred until demanded by a real game): cascaded/point/spot
 shadows, skeletal animation, package manager, 2D renderer, net host migration.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
