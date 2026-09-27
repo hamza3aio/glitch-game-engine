@@ -45,8 +45,8 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Character | `physics/character.ts` | Arcade velocity lerp + jump gate. No coyote/buffer/slopes |
 | Input | `input/{input,actions}.ts` | Keyboard set + pointer drag + WASD/Space/R mapping. No pressed/released edges, remap, touch |
 | Audio | `audio/*.ts` | Clips + mixer groups + HRTF positional + listener + loops + sequencer + volume persist; pure WAV codec, procedural notes/SFX, dB math |
-| Scene | `scene/scene.ts` | JSON `{version, entities[]}` transforms+mesh+static+actors. **Writes v2, never migrates; lossy colliders** |
-| Prefabs/kit | `scene/{prefab,citykit}.ts` | Spawn helpers + box-built street props. No GUIDs/instancing |
+| Scene | `scene/scene.ts` | v4 JSON: versioned + migrated (v1/v2/v3 upgrade field-by-field), per-entity recovery, additive load, UID overrides, full collider/light/terrain/spin/trigger/rigidbody state; deterministic 2-space output |
+| Prefabs/kit | `scene/{prefab,prefabs,citykit}.ts` | Spawn helpers + box-built street props; prefab save/parse/instantiate with namespaced UIDs and per-instance overrides |
 | Actors | `scene/actor.ts` | 7-box cartoon rigs, painted faces, sine walk pose. No skeleton |
 | Assets | `assets/loader.ts` | Cached fetch for texture/OBJ/JSON. Not wired to editor |
 | Asset DB | `assets/db.ts` (NEW, v2.15) | GUID registry, per-kind import settings, dependency graph + cycle guard, versioned JSON, exposed as `Engine.assets` |
@@ -72,7 +72,7 @@ decision), post-processing stack, profilers, package manager, 2D renderer.
 
 1. Renderer consumes flat `Transform`; `hierarchy.ts` world matrices not yet
    consumed by renderer/physics (explicit follow-up, not silent).
-2. `saveScene` lossy (collider extents, velocity, Spin/Trigger) + no migration.
+2. ~~`saveScene` lossy (collider extents, velocity, Spin/Trigger) + no migration~~ FIXED (v2.19: scene v4 round-trips all of it, migrates v1–v3, recovers per entity).
 3. `query()` O(n·m) per call per frame; no archetypes/caching.
 4. Entity IDs monotonic, never recycled, no versioning.
 5. Shader: wrong normal matrix under non-uniform scale; spec not tinted.
@@ -134,6 +134,7 @@ Next 3 subsystems in priority order:
   15. ~~Directional shadow mapping (ortho fit + texel snapping, depth pass, 3x3 PCF, normal-offset bias, editor toggle)~~ DONE (v2.16; GL path needs browser confirmation)
   16. ~~Quality settings (4 presets, sanitisation, localStorage persistence, resolution scaling, FPS cap) + exposure/tone-mapping/gamma output stage~~ DONE (v2.17; GL path needs browser confirmation)
   17. ~~Spot lights + light types (cone falloff, range cutoff, slot ranking, ECS Light component, local-space aim)~~ DONE (v2.18; GL path needs browser confirmation)
+  18. ~~Scene v4: migration, per-entity recovery, additive scenes, UID overrides, full component round-trip~~ DONE (v2.19)
 Remaining future work (deferred until demanded by a real game): cascaded/point/spot
 shadows, skeletal animation, package manager, 2D renderer, net host migration.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,

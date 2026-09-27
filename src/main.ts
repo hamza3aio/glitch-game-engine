@@ -402,7 +402,7 @@ async function build() {
     if (!editor.visible) editor.toggle();
   }
   await loader.hide();
-  menu.show(true, "v2.18.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
+  menu.show(true, "v2.19.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
 }
 
 async function enter() {
