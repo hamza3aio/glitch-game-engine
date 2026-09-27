@@ -25,6 +25,52 @@ export function registerDefaultCommands(reg: CommandRegistry, engine: Engine, wo
     return { ok: true, output: "log cleared" };
   });
 
+  // Phase 20: packaging settings. Read-only display plus a few setters;
+  // it never starts a build (that is an npm script, not a runtime action).
+  reg.register("build", (args) => {
+    const svc = engine.build;
+    const a = args.trim();
+    const s = svc.settings;
+    if (a === "") {
+      return {
+        ok: true,
+        output: [
+          svc.summary(),
+          `  appId ${s.appId} · out ${s.outDir} · icon ${s.icon ?? "default"}`,
+          `  host ${svc.host.platform}/${svc.host.arch} electron ${svc.host.electron} chrome ${svc.host.chrome} node ${svc.host.node}`,
+          "  set: build name <text> | build version <x.y.z> | build target win|linux|mac | build reset",
+        ].join("\n"),
+      };
+    }
+    const [key, ...rest] = a.split(/\s+/);
+    const value = rest.join(" ");
+    switch (key) {
+      case "name": {
+        if (!value) return { ok: false, output: "usage: build name <product name>" };
+        return { ok: true, output: `product name = ${svc.save({ productName: value }).productName}` };
+      }
+      case "version": {
+        if (!value) return { ok: false, output: "usage: build version <x.y.z>" };
+        const saved = svc.save({ version: value });
+        return saved.version === value
+          ? { ok: true, output: `version = ${saved.version}` }
+          : { ok: false, output: `"${value}" is not a valid version` };
+      }
+      case "target": {
+        const saved = svc.save({ platforms: [value] as never });
+        if (saved.platforms[0] !== value.toLowerCase()) {
+          return { ok: false, output: `unknown target "${value}" (use win, linux or mac)` };
+        }
+        return { ok: true, output: `platforms = ${saved.platforms.join(", ")}\n${svc.summary()}` };
+      }
+      case "reset":
+        svc.reset();
+        return { ok: true, output: `reset\n${svc.summary()}` };
+      default:
+        return { ok: false, output: "usage: build [name <text> | version <x.y.z> | target <platform> | reset]" };
+    }
+  });
+
   reg.register("stats", () => {
     const p = engine.profiler.snapshot();
     const r = engine.renderer.stats;

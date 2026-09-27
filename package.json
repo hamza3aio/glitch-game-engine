@@ -12,7 +12,11 @@
     "test": "vitest run",
     "electron": "electron .",
     "electron:dev": "npm run build && electron .",
-    "dist:exe": "npm run build && electron-builder --win portable"
+    "dist:exe": "npm run build && electron-builder --win portable",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:all": "npm run build && electron-builder --win --linux --mac"
   },
   "build": {
     "appId": "com.glitch.engine",
@@ -28,8 +32,24 @@
     ],
     "win": {
       "target": [
-        "portable"
+        "portable",
+        "zip"
       ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "category": "Game",
+      "desktopName": "glitch-game-engine",
+      "syncDesktopName": true
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.games"
     }
   },
   "devDependencies": {

@@ -1,0 +1,10 @@
+{
+  "productName": "New Project",
+  "appId": "com.glitch.project",
+  "version": "1.0.0",
+  "platforms": ["win", "linux"],
+  "icon": null,
+  "outDir": "release",
+  "publish": false,
+  "removeArtifacts": true
+}

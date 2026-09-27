@@ -85,6 +85,33 @@ function openGame(query) {
 
 ipcMain.handle("glitch:version", () => app.getVersion());
 
+// Host facts for the build settings panel (Phase 20). Reported, never faked.
+ipcMain.handle("glitch:host-info", () => ({
+  platform: process.platform,
+  arch: process.arch,
+  electron: process.versions.electron || "",
+  chrome: process.versions.chrome || "",
+  node: process.versions.node || "",
+}));
+
+// Per-project build settings, stored as <project>/build.json. The renderer
+// validates the contents before they are written (see core/buildinfo.ts).
+ipcMain.handle("glitch:read-build-settings", (_e, { path: p }) => {
+  if (!p) return null;
+  try {
+    return JSON.parse(fs.readFileSync(path.join(p, "build.json"), "utf8"));
+  } catch {
+    return null;
+  }
+});
+
+ipcMain.handle("glitch:write-build-settings", (_e, { path: p, settings }) => {
+  if (!p) throw new Error("No project folder.");
+  fs.mkdirSync(p, { recursive: true });
+  fs.writeFileSync(path.join(p, "build.json"), `${JSON.stringify(settings, null, 2)}\n`);
+  return true;
+});
+
 ipcMain.handle("glitch:recents", () => loadRecents());
 
 ipcMain.handle("glitch:new-project", (_e, { name }) => {

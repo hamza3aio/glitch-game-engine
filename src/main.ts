@@ -217,6 +217,10 @@ async function bootProject(path: string) {
     }),
   });
   if (!editor.visible) editor.toggle();
+  // Build settings for this project (Phase 20); the `build` console command
+  // shows and edits them.
+  await engine.build.load(path);
+  showToast(engine.build.summary());
   try {
     const data = await window.glitch!.readScene(path);
     if (data.scene) {

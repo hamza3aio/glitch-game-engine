@@ -11,6 +11,7 @@ import { QualitySettings } from "./quality.js";
 import { Logger } from "../debug/logger.js";
 import { PluginHost } from "../plugins/host.js";
 import { ImportPipeline } from "../assets/pipeline.js";
+import { createBuildSettingsService } from "./buildservice.js";
 
 export class Engine {
   world = new World();
@@ -31,6 +32,8 @@ export class Engine {
   plugins = new PluginHost({ onError: (name, err) => {
     this.log.error("plugins", `"${name}" failed`, undefined, err);
   } });
+  /** Per-project packaging settings (Phase 20). */
+  build = createBuildSettingsService();
   loop: GameLoop;
   private systems: ((dt: number) => void)[] = [];
   private systemNames: string[] = [];

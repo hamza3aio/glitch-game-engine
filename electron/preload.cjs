@@ -4,6 +4,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 // (regular web builds fall back to localStorage / file download).
 contextBridge.exposeInMainWorld("glitch", {
   version: () => ipcRenderer.invoke("glitch:version"),
+  hostInfo: () => ipcRenderer.invoke("glitch:host-info"),
+  readBuildSettings: (path) => ipcRenderer.invoke("glitch:read-build-settings", { path }),
+  writeBuildSettings: (path, settings) => ipcRenderer.invoke("glitch:write-build-settings", { path, settings }),
   recents: () => ipcRenderer.invoke("glitch:recents"),
   newProject: (name) => ipcRenderer.invoke("glitch:new-project", { name }),
   openSample: () => ipcRenderer.invoke("glitch:open-sample"),

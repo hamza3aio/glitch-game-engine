@@ -1,5 +1,10 @@
 interface GlitchBridge {
   version(): Promise<string>;
+  hostInfo(): Promise<{
+    platform: string; arch: string; electron: string; chrome: string; node: string;
+  }>;
+  readBuildSettings(path: string): Promise<unknown | null>;
+  writeBuildSettings(path: string, settings: unknown): Promise<boolean>;
   recents(): Promise<{ name: string; path: string; updatedAt: number }[]>;
   newProject(name: string): Promise<{ name: string; path: string }>;
   openSample(): Promise<boolean>;

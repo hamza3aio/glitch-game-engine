@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CommandRegistry, LEVEL_RANK, LOG_LEVELS, Logger, tokenize, type LogRecord } from "../src/debug/logger.js";
 import { registerDefaultCommands } from "../src/debug/commands.js";
+import { createBuildSettingsService } from "../src/core/buildservice.js";
 import { World } from "../src/ecs/world.js";
 import { makeTransform } from "../src/ecs/components.js";
 
@@ -188,6 +189,7 @@ describe("default commands", () => {
         camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 }, fovY: 1 },
       },
       assets: { count: 9 },
+      build: createBuildSettingsService(),
     };
     const reg = registerDefaultCommands(new CommandRegistry(), engine as never, world);
     return { reg, engine, world, entity: e };
@@ -197,7 +199,25 @@ describe("default commands", () => {
     const { reg } = harness();
     const r = reg.run("help");
     expect(r.ok).toBe(true);
-    for (const n of ["stats", "quality", "errors", "shadows", "entities"]) expect(r.output).toContain(n);
+    for (const n of ["stats", "quality", "errors", "shadows", "entities", "build"]) expect(r.output).toContain(n);
+  });
+
+  it("build shows the settings and applies valid changes", () => {
+    const { reg } = harness();
+    const show = reg.run("build");
+    expect(show.ok).toBe(true);
+    expect(show.output).toContain("win/portable");
+    expect(show.output).toContain("appId");
+    expect(reg.run("build name Night Shift").ok).toBe(true);
+    expect(reg.run("build").output).toContain("Night Shift");
+    expect(reg.run("build version 0.9.0").ok).toBe(true);
+    expect(reg.run("build version v9").ok).toBe(false);
+    expect(reg.run("build target linux").ok).toBe(true);
+    expect(reg.run("build").output).toContain("linux/AppImage");
+    expect(reg.run("build target playstation").ok).toBe(false);
+    expect(reg.run("build name").ok).toBe(false);
+    expect(reg.run("build nonsense").ok).toBe(false);
+    expect(reg.run("build reset").ok).toBe(true);
   });
 
   it("stats reports real engine numbers", () => {

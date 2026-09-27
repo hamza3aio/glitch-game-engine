@@ -32,14 +32,14 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Core loop | `core/{engine,loop,time,loading}.ts` | Fixed-step accumulator (1/60, 4-substep guard), FPS clock, staged DOM loading screen; v2.14 profiles every frame; v2.17 caps presentation rate from the quality config |
 | Quality | `core/quality.ts` (NEW, v2.17) | 4 presets (low/medium/high/ultra), field sanitisation, versioned localStorage persistence, render-scale + FPS limit, exposed as `Engine.quality` |
 | Tonemap | `rendering/tonemap.ts` + `TONEMAP_GLSL` (NEW, v2.17) | Exposure -> Reinhard/ACES -> gamma output stage, shared by all four lit programs; no-op at defaults |
-| Rendering | `rendering/renderer.ts` + `shader.ts` | Single Blinn-Phong WebGL2 program, 1 dir + ≤4 point/spot lights, textured, distance fog; v2.3 frustum culling + instanced batches + frame stats; v2.13 post chain; v2.16 directional shadow mapping; v2.21 GPU skinning; v2.22 post stack (7 passes, offscreen + composite) |
+| Rendering | `rendering/renderer.ts` + `shader.ts` | Single Blinn-Phong WebGL2 program, 1 dir + ≤4 point/spot lights, textured, distance fog; v2.3 frustum culling + instanced batches + frame stats; v2.13 post chain; v2.16 directional shadow mapping; v2.21 GPU skinning; v2.22 post stack (7 passes, offscreen + composite); v2.26 LOD by screen coverage with hysteresis |
 | Meshes | `rendering/mesh.ts`, `obj.ts` | Cube/plane generators, minimal OBJ (`v/vn/f`), Uint16 indices |
 | Materials | `rendering/material.ts`, `MeshRef` | Legacy Phong fields (color/texture/shininess). **No PBR** |
 | Lights | `rendering/lights.ts`, `lightsystem.ts` | Dir + point + spot (v2.18) types, inverse-square + range cutoff, cone falloff, per-frame slot ranking; `LightSystem` binds ECS `Light` components (local-space spot aim) to the 4 upload slots. Point/spot are analytic only - no shadow maps for them |
 | Textures | `rendering/texture.ts`, `proctex.ts` | RGBA8 upload + procedural canvas painter (faces, cloth, brick, grass, …). DOM-only creation |
 | Sky | `rendering/sky.ts` | Dawn/day/dusk/night palette lerp (colors only, no dome) |
 | Shadows | `rendering/shadows.ts`, `shadowmap.ts` | Blob quads for contact shadows; v2.16 adds real single-cascade directional shadow mapping (ortho fit + world-texel snapping, front-face depth pass, 3x3 PCF, normal-offset + depth bias, strength, editor toggle) |
-| Physics | `physics/physics.ts` | Kinematic box/sphere/capsule vs static + ground plane, smallest-axis + normal-removal resolve, 32-bit layer/mask filtering. No dynamics-vs-dynamics |
+| Physics + shapes | `physics/physics.ts`, `physics/shapes.ts` (NEW, v2.26) | Kinematic box/sphere/capsule vs static + ground plane, smallest-axis + normal-removal resolve, 32-bit layer/mask filtering. No dynamics-vs-dynamics. v2.26 adds `physics/shapes.ts`: triangle-soup mesh colliders, compound colliders + bounds, sphere cast, overlap query, physics materials, contact collection |
 | Triggers | `physics/trigger.ts` | Center-in-box enter/exit. No extents test, no layers |
 | Raycast | `physics/raycast.ts` | Slab ray vs AABB, closest hit. No mask/normal |
 | Character | `physics/character.ts` | Arcade velocity lerp + jump gate. No coyote/buffer/slopes |
@@ -50,11 +50,12 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Actors | `scene/actor.ts` | 7-box cartoon rigs, painted faces, sine walk pose. No skeleton |
 | Animation | `anim/skeleton.ts`, `anim/animator.ts`, `rendering/skinning.ts` (NEW, v2.21) | Skeletons + bind inverses, keyframe clips (linear/step), pose sampling, GPU skinning (4 influences, 32-bone palette), state machine with crossfade, animation events, root motion, two-bone IK. No retargeting/cloth |
 | Assets | `assets/loader.ts`, `assets/db.ts`, `assets/pipeline.ts` | Cached fetch for texture/OBJ/JSON. Asset DB: GUID registry, per-kind import settings, dependency graph + cycle guard, versioned JSON, exposed as `Engine.assets`. v2.25 adds the import pipeline: content hashing, cooperative queue, OBJ + glTF 2.0/GLB importers, reimport-on-change, `imports` command, asset browser panel (drag-drop). FBX/texture decode/audio transcode are NOT implemented |
-| Editor | `editor/overlay.ts`, `editor/console.ts`, `editor/assetbrowser.ts` | F9 panel: hierarchy list, transform/color inspector, add/delete, pause, project save / file fallback; `~` opens the debug console; asset browser with search/kind filter, settings + dependency view, reimport/remove, drag-drop import |
+| Editor | `editor/overlay.ts`, `editor/console.ts`, `editor/assetbrowser.ts`, `editor/selection.ts` (NEW, v2.26) | F9 panel: hierarchy list, transform/color inspector, add/delete, pause, project save / file fallback; `~` opens the debug console; asset browser with search/kind filter, settings + dependency view, reimport/remove, drag-drop import. v2.26 adds the selection model: multi-select, indented hierarchy with search + kind filter, rename, duplicate via the scene serializer |
 | Debug | `debug/logger.ts`, `debug/commands.ts` (NEW, v2.20) | Central log + error sink with system tags, stacks, bounded/folded buffer, level+text filters; command registry with 11 real commands (stats, quality, shadows, entities, errors, fov, …). Game systems that throw are caught per frame and reported, never fatal |
 | UI | `ui/{menu,hud}.ts` | Main-menu overlay with hooks, FPS/message HUD |
 | Net | `net/p2p.ts`, `net/netcore.ts` | Serverless WebRTC listen-server (host authority, snapshots, 4 max). **Untested 2-machine**. v2.24 adds a transport-agnostic replication core: net IDs, quantized snapshots with interpolation buffer, interest management, RPC channel, client prediction with reconciliation, loopback transport for testing |
 | Projects | `electron/*`, `project-template/` | Launcher (new/recents/samples/guide), scene.json projects, plugin folders in userData |
+| Build | `core/buildinfo.ts`, `core/buildservice.ts` (NEW, v2.26) | Per-project `build.json` (productName/appId/version/platforms/icon/outDir), sanitised on load and save, host facts over IPC, electron-builder config fragment, `build` console command, `dist:win/linux/mac/all` npm scripts. See debt #11 for the AppImage-on-Windows limitation |
 | Plugins | `plugins/host.ts`, `plugins/loader.ts` (NEW, v2.23) | Versioned manifests, dependency order + cycle detection, 8 extension kinds (component/system/editorPanel/importer/tool/shader/script/asset), rollback on load failure, disk loading via the Electron bridge, `plugins` console command, `Engine.plugins` |
 | Sample | `main.ts`, `examples/` | Night Shift mini-game (collect/deliver, clock, win/lose) |
 
@@ -85,6 +86,12 @@ package manager, 2D renderer.
 8. Net code never tested with 2 machines; no host migration.
 9. `loading.ts` tips are game-specific (should move to game repo).
 10. `createTrigger` duplicates `makeTrigger`; `Material` unused by renderer.
+11. Linux packaging from Windows: `dist:linux` produces the `tar.gz` and the
+    `linux-unpacked/` tree, but the **AppImage step fails on this host** —
+    app-builder needs to create a symlink and Windows only allows that with
+    Developer Mode or admin rights. Build AppImage on Linux/CI. The engine
+    itself has no platform-specific code (`electron/main.cjs` uses `path`
+    and `app.getPath` only).
 
 ## 5. Dependency graph (imports)
 
@@ -145,6 +152,10 @@ Next 3 subsystems in priority order:
   23. ~~Plugin/package architecture: versioned manifests, dependency order + cycle detection, 8 extension kinds, rollback on failure, disk loading via the Electron bridge~~ DONE (v2.23)
   24. ~~Networking foundations: net IDs, quantized snapshots, interpolation buffer, interest management, RPC channel, client prediction with reconciliation, loopback transport, `net` command~~ DONE (v2.24)
   25. ~~Asset import pipeline: content hashing, cooperative queue, OBJ + glTF/GLB importers, reimport-on-change, asset browser panel, `imports` command~~ DONE (v2.25; GLB/OBJ browser upload needs confirmation)
+  26. ~~Editor hierarchy: search, rename (double-click), duplicate (Ctrl+D), multi-select (shift/ctrl), kind filter, clear (Esc)~~ DONE (v2.26; DOM paths need browser confirmation)
+  27. ~~Physics extras: mesh colliders (triangle soup), compound colliders + bounds, sphere cast, overlap query, physics materials, contact collection through the layer/mask rule~~ DONE (v2.26)
+  28. ~~LOD: screen-coverage level selection with hysteresis, cull floor, per-entity level history, scene round-trip, pyramid/sphere proxy primitives, LOD treeline in the sample~~ DONE (v2.26; GL mesh-swap path needs browser confirmation)
+  29. ~~Build settings + Linux target: per-project `build.json` (validated), host info via IPC, electron-builder config fragment, `build` console command, `dist:win/linux/mac/all` scripts~~ DONE (v2.26; AppImage needs a symlink-capable host — see below)
 Remaining future work (deferred until demanded by a real game): cascaded/point/spot
 shadows, skeletal animation, package manager, 2D renderer, net host migration.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
