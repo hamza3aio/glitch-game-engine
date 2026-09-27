@@ -35,7 +35,7 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Rendering | `rendering/renderer.ts` + `shader.ts` | Single Blinn-Phong WebGL2 program, 1 dir + ≤4 point lights, textured, distance fog; v2.3 adds frustum culling + instanced batches + frame stats; v2.13 adds post chain (scene capture + grade/vignette composite, off by default) |
 | Meshes | `rendering/mesh.ts`, `obj.ts` | Cube/plane generators, minimal OBJ (`v/vn/f`), Uint16 indices |
 | Materials | `rendering/material.ts`, `MeshRef` | Legacy Phong fields (color/texture/shininess). **No PBR** |
-| Lights | `rendering/lights.ts` | Dir + point types (range unused by shader). No spots/point shadows |
+| Lights | `rendering/lights.ts`, `lightsystem.ts` | Dir + point + spot (v2.18) types, inverse-square + range cutoff, cone falloff, per-frame slot ranking; `LightSystem` binds ECS `Light` components (local-space spot aim) to the 4 upload slots. Point/spot are analytic only - no shadow maps for them |
 | Textures | `rendering/texture.ts`, `proctex.ts` | RGBA8 upload + procedural canvas painter (faces, cloth, brick, grass, …). DOM-only creation |
 | Sky | `rendering/sky.ts` | Dawn/day/dusk/night palette lerp (colors only, no dome) |
 | Shadows | `rendering/shadows.ts`, `shadowmap.ts` | Blob quads for contact shadows; v2.16 adds real single-cascade directional shadow mapping (ortho fit + world-texel snapping, front-face depth pass, 3x3 PCF, normal-offset + depth bias, strength, editor toggle) |
@@ -133,6 +133,7 @@ Next 3 subsystems in priority order:
   14. ~~Asset database (GUID registry, import settings, dependency graph, versioned JSON)~~ DONE (v2.15)
   15. ~~Directional shadow mapping (ortho fit + texel snapping, depth pass, 3x3 PCF, normal-offset bias, editor toggle)~~ DONE (v2.16; GL path needs browser confirmation)
   16. ~~Quality settings (4 presets, sanitisation, localStorage persistence, resolution scaling, FPS cap) + exposure/tone-mapping/gamma output stage~~ DONE (v2.17; GL path needs browser confirmation)
+  17. ~~Spot lights + light types (cone falloff, range cutoff, slot ranking, ECS Light component, local-space aim)~~ DONE (v2.18; GL path needs browser confirmation)
 Remaining future work (deferred until demanded by a real game): cascaded/point/spot
 shadows, skeletal animation, package manager, 2D renderer, net host migration.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,

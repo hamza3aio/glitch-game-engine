@@ -62,3 +62,36 @@ export interface PlayerTag {
   speed: number;
   jumpSpeed: number;
 }
+
+// --- lights (Phase 3) ---
+
+/**
+ * Light component. Position comes from the entity transform; `direction`
+ * is local-space (rotating the entity aims the spot) so lights can be
+ * parented and animated. `on` lets a game disable a light without
+ * removing the component.
+ */
+export interface Light {
+  kind: "point" | "spot";
+  color: [number, number, number];
+  intensity: number;
+  range: number;
+  /** Local-space aim for spots (points ignore this). */
+  direction: [number, number, number];
+  innerAngle: number; // radians
+  outerAngle: number; // radians
+  on: boolean;
+}
+
+export function makeLight(kind: "point" | "spot" = "point"): Light {
+  return {
+    kind,
+    color: [1, 0.9, 0.7],
+    intensity: 1,
+    range: 20,
+    direction: [0, -1, 0],
+    innerAngle: (25 * Math.PI) / 180,
+    outerAngle: (38 * Math.PI) / 180,
+    on: true,
+  };
+}

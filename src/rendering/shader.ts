@@ -62,6 +62,34 @@ export const SHADOW_RECEIVER_GLSL = `float shadowFactor(vec3 worldPos, vec3 N, v
 // Output stage shared by every lit shader: exposure -> tone map -> gamma.
 // Mirrors tonemapPixel() in tonemap.ts. Default (mode 0, gamma 1) is an
 // exact no-op so existing renders are byte-identical.
+// Point/spot light slots (Phase 3). Spots share the point slots and add a
+// cone axis + cosines; uSpotCount says how many of the 4 slots are spots.
+// uPointRange adds the smooth range cutoff the old hardcoded falloff lacked.
+// Mirrors distanceAttenuation/spotAttenuation in lights.ts.
+export const SPOT_UNIFORMS_GLSL = `uniform float uPointRange[4];
+uniform int uSpotCount;
+uniform vec3 uPointDir[4];
+uniform vec2 uSpotCos[4]; // (cos(outer), cos(inner))`;
+
+// Shared lit-light evaluation for all four programs.
+export const SPOT_LIGHT_GLSL = `float pointRangeCutoff(float d, float range) {
+  float f = clamp(d / max(1e-6, range), 0.0, 1.0);
+  return 1.0 - f * f;
+}
+vec3 lightContrib(vec3 albedo, vec3 N, vec3 P, int i) {
+  vec3 toL = uPointPos[i] - P;
+  float d = length(toL);
+  float att = pointRangeCutoff(d, uPointRange[i]) / (1.0 + 0.25 * d * d);
+  if (att <= 0.0) return vec3(0.0);
+  if (i < uSpotCount) {
+    float ct = dot(normalize(-uPointDir[i]), -toL / max(d, 1e-6));
+    if (ct <= uSpotCos[i].x) return vec3(0.0);
+    float span = uSpotCos[i].y - uSpotCos[i].x;
+    att *= span > 1e-6 ? (ct - uSpotCos[i].x) / span : 1.0;
+  }
+  return albedo * uPointColor[i] * max(dot(N, normalize(toL)), 0.0) * att;
+}`;
+
 export const TONEMAP_GLSL = `uniform int uTonemap;
 uniform float uExposure;
 uniform float uGamma;
@@ -101,6 +129,8 @@ uniform float uFogNear;
 uniform float uFogFar;
 out vec4 outColor;
 ${TONEMAP_UNIFORMS}
+${SPOT_UNIFORMS_GLSL}
+${SPOT_LIGHT_GLSL}
 ${SHADOW_UNIFORMS_GLSL}
 ${SHADOW_RECEIVER_GLSL}
 void main() {
@@ -117,14 +147,10 @@ void main() {
     albedo *= texture(uMap, vUV).rgb;
   }
   vec3 col = albedo * (ambient + diff * 0.9);
-  // point lights (diffuse only, distance attenuated)
+  // point + spot lights (diffuse only, range-attenuated)
   for (int i = 0; i < 4; i++) {
     if (i >= uPointCount) break;
-    vec3 toL = uPointPos[i] - vWorldPos;
-    float d = length(toL);
-    float att = 1.0 / (1.0 + 0.25 * d * d);
-    float pd = max(dot(n, normalize(toL)), 0.0) * att;
-    col += albedo * uPointColor[i] * pd;
+    col += lightContrib(albedo, n, vWorldPos, i);
   }
   col += vec3(spec);
   float fd = length(vWorldPos - uCamPos);
@@ -199,6 +225,8 @@ uniform float uFogNear;
 uniform float uFogFar;
 out vec4 outColor;
 ${TONEMAP_UNIFORMS}
+${SPOT_UNIFORMS_GLSL}
+${SPOT_LIGHT_GLSL}
 ${SHADOW_UNIFORMS_GLSL}
 ${SHADOW_RECEIVER_GLSL}
 void main() {
@@ -217,11 +245,7 @@ void main() {
   vec3 col = albedo * (ambient + diff * 0.9);
   for (int i = 0; i < 4; i++) {
     if (i >= uPointCount) break;
-    vec3 toL = uPointPos[i] - vWorldPos;
-    float d = length(toL);
-    float att = 1.0 / (1.0 + 0.25 * d * d);
-    float pd = max(dot(n, normalize(toL)), 0.0) * att;
-    col += albedo * uPointColor[i] * pd;
+    col += lightContrib(albedo, n, vWorldPos, i);
   }
   col += vec3(spec);
   float fd = length(vWorldPos - uCamPos);
@@ -274,6 +298,8 @@ uniform vec3 uGroundColor;
 uniform float uAmbientStrength;
 out vec4 outColor;
 ${TONEMAP_UNIFORMS}
+${SPOT_UNIFORMS_GLSL}
+${SPOT_LIGHT_GLSL}
 ${SHADOW_UNIFORMS_GLSL}
 ${SHADOW_RECEIVER_GLSL}
 
@@ -338,7 +364,13 @@ void main() {
     if (i >= uPointCount) break;
     vec3 toL = uPointPos[i] - vWorldPos;
     float d = length(toL);
-    float att = 1.0 / (1.0 + 0.25 * d * d);
+    float att = pointRangeCutoff(d, uPointRange[i]) / (1.0 + 0.25 * d * d);
+    if (i < uSpotCount) {
+      float ct = dot(normalize(-uPointDir[i]), -toL / max(d, 1e-6));
+      if (ct <= uSpotCos[i].x) continue;
+      float span = uSpotCos[i].y - uSpotCos[i].x;
+      att *= span > 1e-6 ? (ct - uSpotCos[i].x) / span : 1.0;
+    }
     Lo += brdf(albedo, metallic, roughness, N, V, normalize(toL), uPointColor[i] * att);
   }
   vec3 emission = uEmissive * uEmissiveIntensity;
@@ -374,6 +406,8 @@ uniform float uFogNear;
 uniform float uFogFar;
 out vec4 outColor;
 ${TONEMAP_UNIFORMS}
+${SPOT_UNIFORMS_GLSL}
+${SPOT_LIGHT_GLSL}
 ${SHADOW_UNIFORMS_GLSL}
 ${SHADOW_RECEIVER_GLSL}
 void main() {
@@ -391,11 +425,7 @@ void main() {
   vec3 col = albedo * (ambient + diff * 0.9);
   for (int i = 0; i < 4; i++) {
     if (i >= uPointCount) break;
-    vec3 toL = uPointPos[i] - vWorldPos;
-    float d = length(toL);
-    float att = 1.0 / (1.0 + 0.25 * d * d);
-    float pd = max(dot(n, normalize(toL)), 0.0) * att;
-    col += albedo * uPointColor[i] * pd;
+    col += lightContrib(albedo, n, vWorldPos, i);
   }
   float fd = length(vWorldPos - uCamPos);
   float f = smoothstep(uFogNear, uFogFar, fd);

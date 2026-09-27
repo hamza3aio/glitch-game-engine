@@ -6,7 +6,8 @@ import { Texture2D } from "./texture.js";
 import { MaterialDB, resolveMaterial, type PBRMaterial } from "./materials.js";
 import { frustumFromVP, testSphere, type Plane } from "./frustum.js";
 import { InstancedMesh, FLOATS_PER_INSTANCE, MAX_BATCH, MIN_INSTANCES, composeInstance, groupInstances } from "./instancing.js";
-import type { PointLight } from "./lights.js";
+import type { PointLight, SpotLight } from "./lights.js";
+import { rankLights } from "./lights.js";
 import { PostChain } from "./post.js";
 import { ShadowMap, fitDirectionalShadow, sphereInsideShadow, type ShadowFit } from "./shadowmap.js";
 import type { QualitySettings } from "../core/quality.js";
@@ -33,6 +34,9 @@ const SHADOW_UNIFORM_NAMES = [
 ] as const;
 
 const TONEMAP_UNIFORM_NAMES = ["uTonemap", "uExposure", "uGamma"] as const;
+
+// Added in v2.18 alongside the point-light uniforms.
+const SPOT_UNIFORM_NAMES = ["uPointRange", "uSpotCount", "uPointDir", "uSpotCos"] as const;
 
 const SHADOW_TEXTURE_UNIT = 4; // 0..3 are used by the terrain splat/detail set
 
@@ -81,6 +85,8 @@ export class Renderer {
   lightDir = new Vec3(-0.5, -1, -0.3);
   lightIntensity = 1.0;
   pointLights: PointLight[] = [];
+  /** Spot lights compete for the same 4 slots (Phase 3). */
+  spotLights: SpotLight[] = [];
   clearColor: [number, number, number] = [0.07, 0.09, 0.14];
   fogColor: [number, number, number] = [0.05, 0.06, 0.1];
   fogNear = 40;
@@ -132,6 +138,7 @@ export class Renderer {
       "uFogColor", "uFogNear", "uFogFar",
       ...SHADOW_UNIFORM_NAMES,
       ...TONEMAP_UNIFORM_NAMES,
+      ...SPOT_UNIFORM_NAMES,
     ]) {
       this.loc[name] = gl.getUniformLocation(this.program, name);
     }
@@ -143,6 +150,7 @@ export class Renderer {
       "uFogColor", "uFogNear", "uFogFar",
       ...SHADOW_UNIFORM_NAMES,
       ...TONEMAP_UNIFORM_NAMES,
+      ...SPOT_UNIFORM_NAMES,
     ]) {
       this.iloc[name] = gl.getUniformLocation(this.instProgram, name);
     }
@@ -160,6 +168,7 @@ export class Renderer {
       "uSkyColor", "uGroundColor", "uAmbientStrength",
       ...SHADOW_UNIFORM_NAMES,
       ...TONEMAP_UNIFORM_NAMES,
+      ...SPOT_UNIFORM_NAMES,
     ]) {
       this.ploc[name] = gl.getUniformLocation(this.pbrProgram, name);
     }
@@ -173,6 +182,7 @@ export class Renderer {
       "uFogColor", "uFogNear", "uFogFar",
       ...SHADOW_UNIFORM_NAMES,
       ...TONEMAP_UNIFORM_NAMES,
+      ...SPOT_UNIFORM_NAMES,
     ]) {
       this.tloc[name] = gl.getUniformLocation(this.terrainProgram, name);
     }
@@ -243,6 +253,7 @@ export class Renderer {
     gl.uniformMatrix4fv(loc.uProj, false, proj.elements);
     this.uploadShadow(loc);
     this.uploadTonemap(loc);
+    this.refreshLightSlots();
     gl.uniform3fv(loc.uLightDir, this.lightDir.toArray() as unknown as Float32List);
     gl.uniform1f(loc.uLightIntensity, this.lightIntensity);
     gl.uniform3fv(loc.uCamPos, this.camera.position.toArray() as unknown as Float32List);
@@ -250,18 +261,39 @@ export class Renderer {
     gl.uniform3fv(loc.uFogColor, this.fogColor as unknown as Float32List);
     gl.uniform1f(loc.uFogNear, this.fogNear);
     gl.uniform1f(loc.uFogFar, this.fogEnabled ? this.fogFar : 1e9);
-    const count = Math.max(0, Math.min(4, this.pointLights.length, this.maxPointLights));
+    const count = this.slotCount();
     gl.uniform1i(loc.uPointCount, count);
     if (count > 0) {
       const posArr = new Float32Array(12);
       const colArr = new Float32Array(12);
+      const rangeArr = new Float32Array(4);
+      const dirArr = new Float32Array(12);
+      const cosArr = new Float32Array(8);
+      const slots = this.slots;
+      let spots = 0;
       for (let i = 0; i < count; i++) {
-        const pl = this.pointLights[i];
-        posArr[i * 3] = pl.position.x; posArr[i * 3 + 1] = pl.position.y; posArr[i * 3 + 2] = pl.position.z;
-        colArr[i * 3] = pl.color[0] * pl.intensity; colArr[i * 3 + 1] = pl.color[1] * pl.intensity; colArr[i * 3 + 2] = pl.color[2] * pl.intensity;
+        const s = slots[i];
+        posArr[i * 3] = s.position.x; posArr[i * 3 + 1] = s.position.y; posArr[i * 3 + 2] = s.position.z;
+        colArr[i * 3] = s.color[0] * s.intensity; colArr[i * 3 + 1] = s.color[1] * s.intensity; colArr[i * 3 + 2] = s.color[2] * s.intensity;
+        rangeArr[i] = s.range;
+        if (s.isSpot) {
+          const sp = s.light as SpotLight;
+          // Shaders receive the vector pointing back at the light.
+          dirArr[i * 3] = -sp.direction.x; dirArr[i * 3 + 1] = -sp.direction.y; dirArr[i * 3 + 2] = -sp.direction.z;
+          cosArr[i * 2] = Math.cos(sp.outerAngle);
+          cosArr[i * 2 + 1] = Math.cos(sp.innerAngle);
+          spots++;
+        } else {
+          dirArr[i * 3] = 0; dirArr[i * 3 + 1] = 1; dirArr[i * 3 + 2] = 0;
+          cosArr[i * 2] = -1; cosArr[i * 2 + 1] = 1;
+        }
       }
       gl.uniform3fv(loc.uPointPos, posArr as unknown as Float32List);
       gl.uniform3fv(loc.uPointColor, colArr as unknown as Float32List);
+      gl.uniform1fv(loc.uPointRange, rangeArr);
+      gl.uniform3fv(loc.uPointDir, dirArr as unknown as Float32List);
+      gl.uniform2fv(loc.uSpotCos, cosArr);
+      gl.uniform1i(loc.uSpotCount, spots);
     }
   }
 
@@ -389,6 +421,38 @@ export class Renderer {
       this.stats.instancedDraws++;
       this.stats.drawn += chunk.length;
     }
+  }
+
+  /** Light slots for one frame, ranked by apparent brightness at the camera target. */
+  private slots: { light: PointLight | SpotLight; isSpot: boolean; position: Vec3; color: [number, number, number]; intensity: number; range: number }[] = [];
+
+  private slotCount(): number {
+    return Math.max(0, Math.min(4, this.slots.length, this.maxPointLights));
+  }
+
+  /**
+   * Re-ranks point+spot lights into the 4 uploaded slots. Called once per
+   * frame from uploadShared: a handful of lights, so the sort is free and
+   * there is no cache to go stale when game code mutates the arrays.
+   */
+  refreshLightSlots(): void {
+    const all: (PointLight | SpotLight)[] = [...this.pointLights, ...this.spotLights];
+    if (all.length === 0) {
+      this.slots = [];
+      return;
+    }
+    const kinds: ("point" | "spot")[] = [
+      ...this.pointLights.map(() => "point" as const),
+      ...this.spotLights.map(() => "spot" as const),
+    ];
+    const ranked = rankLights(all, kinds, this.camera.target, Math.max(0, Math.min(4, this.maxPointLights)));
+    this.slots = ranked.map((r) => {
+      const l = all[r.index];
+      return {
+        light: l, isSpot: r.kind === "spot", position: l.position,
+        color: l.color, intensity: l.intensity, range: l.range,
+      };
+    });
   }
 
   // Exposure / tone map / gamma for any lit program.

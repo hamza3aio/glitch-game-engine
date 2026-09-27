@@ -8,6 +8,7 @@ import { skyAt } from "./rendering/sky.js";
 import { hideBlob, makeBlob, stickBlob } from "./rendering/shadows.js";
 import { paintAsphalt, paintBrick, paintGrass, paintNoiseNormal, paintRoof, paintSign } from "./rendering/proctex.js";
 import { makePBR } from "./rendering/materials.js";
+import { makeSpot } from "./rendering/lights.js";
 import { buildActor, poseActor, type ActorRig } from "./scene/actor.js";
 import { ParticleSystem, type EmitterDef } from "./fx/particles.js";
 import { ScriptRuntime } from "./script/script.js";
@@ -141,6 +142,7 @@ let rig: ActorRig;
 let npcA: ActorRig;
 let npcB: ActorRig;
 let npcPhase = 0;
+let padSpot: ReturnType<typeof makeSpot> | null = null;
 let walkPhase = 0;
 let entered = false;
 let editor: EditorOverlay | null = null;
@@ -358,6 +360,18 @@ async function build() {
     { position: new Vec3(-8, 3.5, 4), color: [1.0, 0.85, 0.6], intensity: 1.0, range: 20 },
     { position: new Vec3(8, 3.5, 4), color: [1.0, 0.85, 0.6], intensity: 1.0, range: 20 },
   );
+  // spot light showcase: a moving cone over the green delivery pad (Phase 3)
+  const padSpotLight = makeSpot({
+    position: new Vec3(6, 9, -6),
+    direction: new Vec3(-0.1, -1, 0.15),
+    color: [0.75, 1.0, 0.8],
+    intensity: 1.6,
+    range: 26,
+    innerDegrees: 16,
+    outerDegrees: 30,
+  });
+  padSpot = padSpotLight;
+  renderer.spotLights.push(padSpotLight);
   resetShift();
   // NPC-A patrols the block on a baked navmesh (live pathfinding demo).
   navGrid = bakeNavmesh(world, { minX: -30, maxX: 30, minZ: -20, maxZ: 20, cell: 1 });
@@ -388,7 +402,7 @@ async function build() {
     if (!editor.visible) editor.toggle();
   }
   await loader.hide();
-  menu.show(true, "v2.17.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
+  menu.show(true, "v2.18.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
 }
 
 async function enter() {
@@ -509,6 +523,8 @@ engine.addSystem((dt) => {
     stickBlob(world, blobA, ax, 0, 6);
   }
   poseActor(world, npcB, 6, 0, -6, Math.PI, npcPhase, false);
+  // the spot sways over the pad so the cone falloff is visible in motion
+  if (padSpot) padSpot.position.set(6 + Math.sin(npcPhase * 0.5) * 3, 9, -6 + Math.cos(npcPhase * 0.5) * 3);
   scripts.update(dt);
   if (scripts.errors.length > scriptErrorShown) {
     scriptErrorShown = scripts.errors.length;
