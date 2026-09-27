@@ -7,7 +7,14 @@ import type { World } from "../ecs/world.js";
 import { CommandRegistry, type CommandResult } from "./logger.js";
 import { QUALITY_LEVELS } from "../core/quality.js";
 
-export function registerDefaultCommands(reg: CommandRegistry, engine: Engine, world: World): CommandRegistry {
+export interface DefaultCommandDeps {
+  engine: Engine;
+  world: World;
+  /** Present when the game runs a net session (server or client). */
+  net?: unknown;
+}
+
+export function registerDefaultCommands(reg: CommandRegistry, engine: Engine, world: World, deps: DefaultCommandDeps = { engine, world }): CommandRegistry {
   reg.register("help", () => ({
     ok: true,
     output: reg.names().filter((n, i, a) => a.indexOf(n) === i).join(", "),
@@ -64,6 +71,24 @@ export function registerDefaultCommands(reg: CommandRegistry, engine: Engine, wo
         ...list.map((p) => `  ${p.manifest.name}@${p.manifest.version} — ${p.extensions} extensions${p.manifest.description ? ` (${p.manifest.description})` : ""}`),
       ].join("\n"),
     };
+  });
+
+  reg.register("net", (args) => {
+    const sub = args.trim().toLowerCase();
+    if (!deps.net) return { ok: false, output: "no net session running in this build" };
+    const st = (deps.net as { state: () => { role: string; peers: number; spawned: number; replicas: number; systems: number; rttMs: number } }).state();
+    if (sub === "server") return { ok: true, output: `host — ${st.spawned} entities replicated to ${st.peers} peer(s)` };
+    if (sub === "client") return { ok: true, output: `client — ${st.replicas} replica(s), ${st.peers} peer(s), ${st.rttMs}ms simulated RTT` };
+    if (sub === "" || sub === "status") {
+      return {
+        ok: true,
+        output: [
+          `role ${st.role} · ${st.peers} peer(s) · ${st.spawned} spawned · ${st.replicas} replicas · ${st.systems} net system(s)`,
+          st.rttMs > 0 ? `simulated RTT ${st.rttMs}ms (replicas interpolate over a 100ms buffer)` : "",
+        ].join("\n"),
+      };
+    }
+    return { ok: false, output: "usage: net [status|server|client]" };
   });
 
   reg.register("quality", (args) => {

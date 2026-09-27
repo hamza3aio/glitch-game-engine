@@ -17,6 +17,8 @@ import { registerDemoCharacter } from "./anim/demo.js";
 import { limbColumn } from "./rendering/skinning.js";
 import { SAMPLE_MANIFEST, type PluginSystem } from "./plugins/host.js";
 import { loadPlugins } from "./plugins/loader.js";
+import { LoopbackTransport, NetClient, NetServer } from "./net/netcore.js";
+import { World } from "./ecs/world.js";
 import { buildActor, poseActor, type ActorRig } from "./scene/actor.js";
 import { ParticleSystem, type EmitterDef } from "./fx/particles.js";
 import { ScriptRuntime } from "./script/script.js";
@@ -68,8 +70,36 @@ const scripts = new ScriptRuntime(world);
 let scriptErrorShown = 0;
 // Script errors reach the central console, tagged with their entity.
 scripts.onError = (e) => engine.log.error("script", e.message, { entity: e.entity });
+
+// Networking foundation (Phase 23): a loopback session so the replication
+// path runs every launch (no real peers, no network involved).
+const netSession = (() => {
+  const loop = new LoopbackTransport();
+  const server = new NetServer({ transport: loop, maxInterest: 24 });
+  const replicaWorld = new World();
+  const client = new NetClient(loop, replicaWorld);
+  loop.join(1);
+  client.connect();
+  client.onLog = (m) => engine.log.info("net", m);
+  server.rpc("ping", () => {
+    engine.log.info("net", "host answered a client RPC");
+  });
+  return {
+    loop, server, client, replicaWorld,
+    state: () => ({
+      role: "host + loopback client",
+      peers: server.peerCount,
+      spawned: server.spawnedCount,
+      replicas: client.replicaCount,
+      systems: 1,
+      // Loopback is instantaneous; a real link would report measured RTT.
+      rttMs: 0,
+    }),
+  };
+})();
+
 // Debug console (Phase 19): logger + command registry + DOM panel.
-const commands = registerDefaultCommands(new CommandRegistry(), engine, world);
+const commands = registerDefaultCommands(new CommandRegistry(), engine, world, { engine, world, net: netSession });
 
 // Animation (Phase 9): one demo rig, driven by the state machine.
 const animBank: ClipBank = { skeletons: new Map(), clips: new Map(), machines: new Map() };
@@ -444,6 +474,13 @@ async function build() {
   padSpot = padSpotLight;
   renderer.spotLights.push(padSpotLight);
   resetShift();
+  // Phase 23: replicate a few scene entities to the loopback client so the
+  // `net` console command reports real numbers every run.
+  {
+    const picked = world.query("transform", "mesh").slice(0, 8);
+    for (const e of picked) netSession.server.spawn(e, world);
+    netSession.client.sendRpc("ping", { from: "demo" });
+  }
   // Phase 9: a skinned, state-machine-driven character standing in the scene.
   {
     const reg = registerDemoCharacter(animBank);
@@ -497,7 +534,7 @@ async function build() {
     if (!editor.visible) editor.toggle();
   }
   await loader.hide();
-  menu.show(true, "v2.23.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
+  menu.show(true, "v2.24.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
 }
 
 async function enter() {

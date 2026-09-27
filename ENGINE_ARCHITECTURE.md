@@ -54,7 +54,7 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Editor | `editor/overlay.ts`, `editor/console.ts` | F9 panel: hierarchy list, transform/color inspector, add/delete, pause, project save / file fallback; `~` opens the debug console |
 | Debug | `debug/logger.ts`, `debug/commands.ts` (NEW, v2.20) | Central log + error sink with system tags, stacks, bounded/folded buffer, level+text filters; command registry with 11 real commands (stats, quality, shadows, entities, errors, fov, …). Game systems that throw are caught per frame and reported, never fatal |
 | UI | `ui/{menu,hud}.ts` | Main-menu overlay with hooks, FPS/message HUD |
-| Net | `net/p2p.ts` | Serverless WebRTC listen-server (host authority, snapshots, 4 max). **Untested 2-machine** |
+| Net | `net/p2p.ts`, `net/netcore.ts` | Serverless WebRTC listen-server (host authority, snapshots, 4 max). **Untested 2-machine**. v2.24 adds a transport-agnostic replication core: net IDs, quantized snapshots with interpolation buffer, interest management, RPC channel, client prediction with reconciliation, loopback transport for testing |
 | Projects | `electron/*`, `project-template/` | Launcher (new/recents/samples/guide), scene.json projects, plugin folders in userData |
 | Plugins | `plugins/host.ts`, `plugins/loader.ts` (NEW, v2.23) | Versioned manifests, dependency order + cycle detection, 8 extension kinds (component/system/editorPanel/importer/tool/shader/script/asset), rollback on load failure, disk loading via the Electron bridge, `plugins` console command, `Engine.plugins` |
 | Sample | `main.ts`, `examples/` | Night Shift mini-game (collect/deliver, clock, win/lose) |
@@ -144,6 +144,7 @@ Next 3 subsystems in priority order:
   21. ~~Post stack v2: 7 passes (grade, vignette, blur, bloom, ao, grain, sharpen) with offscreen ping-pong + composite, CPU reference math, serializable graph~~ DONE (v2.22; GL fx path needs browser confirmation)
   22. ~~Editor UX: post stack replaces the old chain (backwards-compatible alias kept)~~ DONE (v2.22)
   23. ~~Plugin/package architecture: versioned manifests, dependency order + cycle detection, 8 extension kinds, rollback on failure, disk loading via the Electron bridge~~ DONE (v2.23)
+  24. ~~Networking foundations: net IDs, quantized snapshots, interpolation buffer, interest management, RPC channel, client prediction with reconciliation, loopback transport, `net` command~~ DONE (v2.24)
 Remaining future work (deferred until demanded by a real game): cascaded/point/spot
 shadows, skeletal animation, package manager, 2D renderer, net host migration.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
