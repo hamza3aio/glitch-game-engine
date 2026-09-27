@@ -103,6 +103,7 @@ async function bootProject(path: string) {
     projectPath: () => path,
     mats: renderer.materials,
     fx: () => fx,
+    shadows: renderer.shadows,
     viewport: () => ({
       view: renderer.camera.view(),
       proj: renderer.camera.projection(canvas.width / Math.max(1, canvas.height)),
@@ -370,10 +371,12 @@ async function build() {
   renderer.post.add("grade");
   renderer.post.setGrade(0, { contrast: 1.06, saturation: 1.08 });
   renderer.post.add("vignette");
+  // Shadow mapping showcase (toggle with H).
+  renderer.shadows.enabled = true;
   if (params.has("editor")) {
     editor = new EditorOverlay(world, document.getElementById("ui")!, {
       addTex, projectPath: () => params.get("project"), mats: renderer.materials,
-      fx: () => fx,
+      fx: () => fx, shadows: renderer.shadows,
       viewport: () => ({
         view: renderer.camera.view(),
         proj: renderer.camera.projection(canvas.width / Math.max(1, canvas.height)),
@@ -384,7 +387,7 @@ async function build() {
     if (!editor.visible) editor.toggle();
   }
   await loader.hide();
-  menu.show(true, "v2.15.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag mouse.");
+  menu.show(true, "v2.16.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag mouse, H toggles shadows.");
 }
 
 async function enter() {
@@ -512,7 +515,7 @@ engine.addSystem((dt) => {
   }
   stickBlob(world, blobB, 6, 0, -6);
 
-  stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} fx ${fx.aliveCount} assets ${engine.assets.count} · ${engine.profiler.formatLine()} · ${clockText()}`;
+  stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} shdw ${renderer.stats.shadowDraws} fx ${fx.aliveCount} assets ${engine.assets.count} · ${engine.profiler.formatLine()} · ${clockText()}`;
 });
 
 const unlock = () => audio.resume();
@@ -520,6 +523,10 @@ window.addEventListener("pointerdown", unlock, { once: true });
 window.addEventListener("keydown", unlock, { once: true });
 window.addEventListener("keydown", (e) => {
   if (e.code === "KeyR" && entered && (e.target as HTMLElement).tagName !== "INPUT") resetShift();
+  if (e.code === "KeyH" && (e.target as HTMLElement).tagName !== "INPUT") {
+    renderer.shadows.enabled = !renderer.shadows.enabled;
+    showToast(`Shadows ${renderer.shadows.enabled ? "ON" : "OFF"} (${renderer.shadows.size}px cascade)`);
+  }
 });
 
 engine.start();

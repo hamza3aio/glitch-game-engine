@@ -6,6 +6,7 @@ import { setParent } from "../ecs/hierarchy.js";
 import { saveScene, loadScene } from "../scene/scene.js";
 import { buildActor, poseActor, type ActorOpts } from "../scene/actor.js";
 import type { MaterialDB } from "../rendering/materials.js";
+import type { ShadowSettings } from "../rendering/renderer.js";
 import type { ParticleSystem } from "../fx/particles.js";
 import { fountainDef } from "../fx/particles.js";
 import { History } from "./history.js";
@@ -27,6 +28,8 @@ export interface EditorHooks {
   mats?: MaterialDB;
   viewport?: () => Viewport | null;
   fx?: () => ParticleSystem | null;
+  /** Renderer-side shadow settings, so the editor stays renderer-agnostic. */
+  shadows?: ShadowSettings;
 }
 
 interface CompSnap {
@@ -131,6 +134,7 @@ export class EditorOverlay {
   private undoBtn!: HTMLElement;
   private redoBtn!: HTMLElement;
   private snapBtn!: HTMLElement;
+  private shadowBtn!: HTMLElement;
   private gizmoSvg: SVGSVGElement;
   private paused = false;
   private history = new History(100);
@@ -197,6 +201,15 @@ export class EditorOverlay {
       this.snapBtn.textContent = `Snap 0.5: ${this.snapOn ? "on" : "off"}`;
     });
     row3.appendChild(this.snapBtn);
+    // Shadow toggle (only when the host exposes renderer shadow settings).
+    const sh = this.hooks?.shadows;
+    if (sh) {
+      this.shadowBtn = mkBtn(`Shadows ${sh.enabled ? "on" : "off"}`, () => {
+        sh.enabled = !sh.enabled;
+        this.shadowBtn!.textContent = `Shadows ${sh.enabled ? "on" : "off"}`;
+      });
+      row3.appendChild(this.shadowBtn);
+    }
     const hint = document.createElement("div");
     hint.style.cssText = "opacity:0.6;font-size:11px;";
     hint.textContent = "drag arrows · click picks · Del deletes";

@@ -17,6 +17,48 @@ void main() {
   gl_Position = uProj * uView * w;
 }`;
 
+// Shared shadow declarations, injected into every lit fragment shader so
+// one code path serves the legacy, instanced, PBR and terrain programs.
+// uEnableShadows == 0 short-circuits to fully lit (and the renderer skips
+// binding the sampler), so the cost when off is one uniform branch.
+export const SHADOW_UNIFORMS_GLSL = `uniform highp sampler2DShadow uShadowMap;
+uniform mat4 uShadowMatrix;
+uniform vec2 uShadowTexelUV;
+uniform float uShadowTexel;
+uniform float uShadowBias;
+uniform float uShadowNormalBias;
+uniform float uShadowStrength;
+uniform int uEnableShadows;`;
+
+// shadowFactor(worldPos, N, L) -> 1 lit, uShadowStrength dark when in shadow.
+// Mirrors shadowDepthBias/normalOffsetWorld in shadowmap.ts. Hardware PCF
+// (COMPARE_REF_TO_TEXTURE + LEQUAL) does 2x2 bilinear taps per sample; the
+// 3x3 loop is a 9-tap filter. Outside the map the surface is lit.
+export const SHADOW_RECEIVER_GLSL = `float shadowFactor(vec3 worldPos, vec3 N, vec3 L) {
+  if (uEnableShadows == 0) return 1.0;
+  float ndl = max(dot(N, L), 0.0);
+  // Normal offset first: slide the lookup along the surface by a texel's
+  // worth, scaled by grazing angle. Removes acne without peter-panning.
+  vec3 pos = worldPos + N * (uShadowTexel * uShadowNormalBias * (1.0 - ndl));
+  vec4 lp = uShadowMatrix * vec4(pos, 1.0);
+  vec3 proj = lp.xyz / lp.w;
+  proj = proj * 0.5 + 0.5;
+  if (proj.z > 1.0 || proj.z < 0.0) return 1.0;
+  if (any(lessThan(proj.xy, vec2(0.0))) || any(greaterThan(proj.xy, vec2(1.0)))) return 1.0;
+  float ref = proj.z - (uShadowBias + (1.0 - ndl) * uShadowTexel * 0.6);
+  float sum = 0.0;
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      sum += texture(uShadowMap, vec3(proj.xy + vec2(float(x), float(y)) * uShadowTexelUV, ref));
+    }
+  }
+  float s = sum / 9.0;
+  // Fade out at the map border so the cascade edge is invisible.
+  vec2 fade = smoothstep(vec2(0.0), vec2(0.06), proj.xy) * smoothstep(vec2(0.0), vec2(0.06), 1.0 - proj.xy);
+  s = mix(1.0, s, fade.x * fade.y);
+  return mix(1.0, s, uShadowStrength);
+}`;
+
 export const FRAG_SRC = `#version 300 es
 precision mediump float;
 in vec3 vNormal;
@@ -36,13 +78,16 @@ uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
 out vec4 outColor;
+${SHADOW_UNIFORMS_GLSL}
+${SHADOW_RECEIVER_GLSL}
 void main() {
   vec3 n = normalize(vNormal);
   vec3 l = normalize(-uLightDir);
-  float diff = max(dot(n, l), 0.0) * uLightIntensity;
+  float shade = shadowFactor(vWorldPos, n, l);
+  float diff = max(dot(n, l), 0.0) * uLightIntensity * shade;
   vec3 viewDir = normalize(uCamPos - vWorldPos);
   vec3 h = normalize(l + viewDir);
-  float spec = pow(max(dot(n, h), 0.0), uShininess) * 0.3;
+  float spec = pow(max(dot(n, h), 0.0), uShininess) * 0.3 * shade;
   vec3 ambient = vec3(0.25);
   vec3 albedo = uColor;
   if (uUseTexture == 1) {
@@ -130,13 +175,16 @@ uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
 out vec4 outColor;
+${SHADOW_UNIFORMS_GLSL}
+${SHADOW_RECEIVER_GLSL}
 void main() {
   vec3 n = normalize(vNormal);
   vec3 l = normalize(-uLightDir);
-  float diff = max(dot(n, l), 0.0) * uLightIntensity;
+  float shade = shadowFactor(vWorldPos, n, l);
+  float diff = max(dot(n, l), 0.0) * uLightIntensity * shade;
   vec3 viewDir = normalize(uCamPos - vWorldPos);
   vec3 h = normalize(l + viewDir);
-  float spec = pow(max(dot(n, h), 0.0), vShininess) * 0.3;
+  float spec = pow(max(dot(n, h), 0.0), vShininess) * 0.3 * shade;
   vec3 ambient = vec3(0.25);
   vec3 albedo = vColor;
   if (uUseTexture == 1) {
@@ -201,6 +249,8 @@ uniform vec3 uSkyColor;
 uniform vec3 uGroundColor;
 uniform float uAmbientStrength;
 out vec4 outColor;
+${SHADOW_UNIFORMS_GLSL}
+${SHADOW_RECEIVER_GLSL}
 
 vec3 perturbNormal(vec3 N, vec3 V) {
   vec3 q0 = dFdx(vWorldPos);
@@ -257,7 +307,8 @@ void main() {
   if (uUseAO == 1) ao = mix(1.0, texture(uAOMap, vUV).r, uAOStrength);
   vec3 skyAmb = mix(uGroundColor, uSkyColor, N.y * 0.5 + 0.5);
   vec3 ambient = skyAmb * albedo * ao * uAmbientStrength;
-  vec3 Lo = brdf(albedo, metallic, roughness, N, V, normalize(-uLightDir), vec3(1.0) * uLightIntensity);
+  vec3 Lo = brdf(albedo, metallic, roughness, N, V, normalize(-uLightDir), vec3(1.0) * uLightIntensity)
+          * shadowFactor(vWorldPos, N, normalize(-uLightDir));
   for (int i = 0; i < 4; i++) {
     if (i >= uPointCount) break;
     vec3 toL = uPointPos[i] - vWorldPos;
@@ -297,6 +348,8 @@ uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
 out vec4 outColor;
+${SHADOW_UNIFORMS_GLSL}
+${SHADOW_RECEIVER_GLSL}
 void main() {
   vec3 n = normalize(vNormal);
   vec3 weights = texture(uSplatMap, vUV).rgb;
@@ -307,7 +360,7 @@ void main() {
     texture(uDetailB, vUV * uDetailTiling).rgb * weights.g +
     texture(uDetailC, vUV * uDetailTiling).rgb * weights.b;
   vec3 l = normalize(-uLightDir);
-  float diff = max(dot(n, l), 0.0) * uLightIntensity;
+  float diff = max(dot(n, l), 0.0) * uLightIntensity * shadowFactor(vWorldPos, n, l);
   vec3 ambient = vec3(0.3);
   vec3 col = albedo * (ambient + diff * 0.9);
   for (int i = 0; i < 4; i++) {
@@ -323,6 +376,15 @@ void main() {
   col = mix(col, uFogColor, f);
   outColor = vec4(col, 1.0);
 }`;
+
+// --- shadow depth pass (v2.16) ---
+// Depth-only programs. The vertex stage is shared with the lit passes;
+// the fragment stage writes nothing (depth-only FBO). Front faces are
+// culled during the depth pass, which is what makes a single depth
+// compare enough to avoid acne on closed box geometry.
+export const SHADOW_FRAG_SRC = `#version 300 es
+precision mediump float;
+void main() { }`;
 
 // Fullscreen composite: single grade + vignette pass over the captured
 // scene texture. Mirrors gradePixel + vignetteFactor in post.ts.

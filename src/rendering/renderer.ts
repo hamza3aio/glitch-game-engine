@@ -1,6 +1,6 @@
 import { Mat4 } from "../math/mat4.js";
 import { Vec3 } from "../math/vec3.js";
-import { FRAG_SRC, VERT_SRC, INST_FRAG_SRC, INST_VERT_SRC, PBR_FRAG_SRC, TERRAIN_FRAG_SRC, POST_VERT_SRC, POST_FRAG_SRC, createProgram } from "./shader.js";
+import { FRAG_SRC, VERT_SRC, INST_FRAG_SRC, INST_VERT_SRC, PBR_FRAG_SRC, TERRAIN_FRAG_SRC, POST_VERT_SRC, POST_FRAG_SRC, SHADOW_FRAG_SRC, createProgram } from "./shader.js";
 import { GpuMesh, boundsRadius, cubeData, planeData, type MeshData } from "./mesh.js";
 import { Texture2D } from "./texture.js";
 import { MaterialDB, resolveMaterial, type PBRMaterial } from "./materials.js";
@@ -8,6 +8,29 @@ import { frustumFromVP, testSphere, type Plane } from "./frustum.js";
 import { InstancedMesh, FLOATS_PER_INSTANCE, MAX_BATCH, MIN_INSTANCES, composeInstance, groupInstances } from "./instancing.js";
 import type { PointLight } from "./lights.js";
 import { PostChain } from "./post.js";
+import { ShadowMap, fitDirectionalShadow, sphereInsideShadow, type ShadowFit } from "./shadowmap.js";
+
+export interface ShadowSettings {
+  enabled: boolean;
+  size: number; // shadow map resolution (power of two)
+  distance: number; // world radius the single cascade covers around the camera target
+  bias: number; // depth bias
+  normalBias: number; // normal-offset bias, in texels
+  strength: number; // 0..1 darkness of full shadow
+}
+
+function defaultShadowSettings(): ShadowSettings {
+  return { enabled: false, size: 2048, distance: 42, bias: 0.0018, normalBias: 1.6, strength: 0.72 };
+}
+
+// Every lit program receives these; kept in one list so a new program
+// cannot silently miss a uniform.
+const SHADOW_UNIFORM_NAMES = [
+  "uShadowMap", "uShadowMatrix", "uShadowTexelUV", "uShadowTexel",
+  "uShadowBias", "uShadowNormalBias", "uShadowStrength", "uEnableShadows",
+] as const;
+
+const SHADOW_TEXTURE_UNIT = 4; // 0..3 are used by the terrain splat/detail set
 import type { TerrainMaterial } from "../world/terrain.js";
 import type { Entity } from "../ecs/world.js";
 import { World } from "../ecs/world.js";
@@ -22,6 +45,7 @@ export interface RenderStats {
   regularDraws: number;
   pbrDraws: number;
   postDraws: number;
+  shadowDraws: number;
 }
 
 interface VisibleItem {
@@ -53,13 +77,21 @@ export class Renderer {
   groundColor: [number, number, number] = [0.12, 0.1, 0.09];
   ambientStrength = 1.0;
   materials = new MaterialDB();
-  readonly stats: RenderStats = { total: 0, drawn: 0, culled: 0, instancedDraws: 0, regularDraws: 0, pbrDraws: 0, postDraws: 0 };
+  readonly stats: RenderStats = { total: 0, drawn: 0, culled: 0, instancedDraws: 0, regularDraws: 0, pbrDraws: 0, postDraws: 0, shadowDraws: 0 };
   private loc: Record<string, WebGLUniformLocation | null> = {};
   private iloc: Record<string, WebGLUniformLocation | null> = {};
   private ploc: Record<string, WebGLUniformLocation | null> = {};
   private tloc: Record<string, WebGLUniformLocation | null> = {};
   private postloc: Record<string, WebGLUniformLocation | null> = {};
   post = new PostChain();
+  shadows: ShadowSettings = defaultShadowSettings();
+  private shadowProgram!: WebGLProgram;
+  private shadowInstProgram!: WebGLProgram;
+  private shadowMap: ShadowMap | null = null;
+  private shadowFit: ShadowFit | null = null;
+  private shadowActive = false;
+  private sloc: Record<string, WebGLUniformLocation | null> = {};
+  private siloc: Record<string, WebGLUniformLocation | null> = {};
   private postProgram!: WebGLProgram;
   private sceneFB: WebGLFramebuffer | null = null;
   private sceneTex: WebGLTexture | null = null;
@@ -77,6 +109,7 @@ export class Renderer {
       "uCamPos", "uShininess", "uMap", "uUseTexture", "uUVScale",
       "uPointCount", "uPointPos", "uPointColor",
       "uFogColor", "uFogNear", "uFogFar",
+      ...SHADOW_UNIFORM_NAMES,
     ]) {
       this.loc[name] = gl.getUniformLocation(this.program, name);
     }
@@ -86,6 +119,7 @@ export class Renderer {
       "uCamPos", "uMap", "uUseTexture",
       "uPointCount", "uPointPos", "uPointColor",
       "uFogColor", "uFogNear", "uFogFar",
+      ...SHADOW_UNIFORM_NAMES,
     ]) {
       this.iloc[name] = gl.getUniformLocation(this.instProgram, name);
     }
@@ -101,6 +135,7 @@ export class Renderer {
       "uPointCount", "uPointPos", "uPointColor",
       "uFogColor", "uFogNear", "uFogFar",
       "uSkyColor", "uGroundColor", "uAmbientStrength",
+      ...SHADOW_UNIFORM_NAMES,
     ]) {
       this.ploc[name] = gl.getUniformLocation(this.pbrProgram, name);
     }
@@ -112,12 +147,23 @@ export class Renderer {
       "uLightDir", "uLightIntensity",
       "uPointCount", "uPointPos", "uPointColor",
       "uFogColor", "uFogNear", "uFogFar",
+      ...SHADOW_UNIFORM_NAMES,
     ]) {
       this.tloc[name] = gl.getUniformLocation(this.terrainProgram, name);
     }
     this.postProgram = createProgram(gl, POST_VERT_SRC, POST_FRAG_SRC);
     for (const name of ["uScene", "uExposure", "uContrast", "uSaturation", "uVignette"]) {
       this.postloc[name] = gl.getUniformLocation(this.postProgram, name);
+    }
+    // Shadow depth pass reuses the lit vertex stages; only the fragment
+    // stage differs (writes nothing - depth-only FBO).
+    this.shadowProgram = createProgram(gl, VERT_SRC, SHADOW_FRAG_SRC);
+    for (const name of ["uModel", "uView", "uProj", "uUVScale"]) {
+      this.sloc[name] = gl.getUniformLocation(this.shadowProgram, name);
+    }
+    this.shadowInstProgram = createProgram(gl, INST_VERT_SRC, SHADOW_FRAG_SRC);
+    for (const name of ["uView", "uProj"]) {
+      this.siloc[name] = gl.getUniformLocation(this.shadowInstProgram, name);
     }
     this.registerMesh("cube", cubeData(1));
     this.registerMesh("ground", planeData(140));
@@ -149,6 +195,8 @@ export class Renderer {
   dispose() {
     for (const im of this.instanced.values()) im.dispose();
     this.instanced.clear();
+    this.shadowMap?.dispose();
+    this.shadowMap = null;
     this.deleteSceneTarget();
   }
 
@@ -167,6 +215,7 @@ export class Renderer {
     const gl = this.gl;
     gl.uniformMatrix4fv(loc.uView, false, view.elements);
     gl.uniformMatrix4fv(loc.uProj, false, proj.elements);
+    this.uploadShadow(loc);
     gl.uniform3fv(loc.uLightDir, this.lightDir.toArray() as unknown as Float32List);
     gl.uniform1f(loc.uLightIntensity, this.lightIntensity);
     gl.uniform3fv(loc.uCamPos, this.camera.position.toArray() as unknown as Float32List);
@@ -315,6 +364,119 @@ export class Renderer {
     }
   }
 
+  // Shadow uniforms for any lit program. When shadows are off the sampler
+  // is never bound and uEnableShadows=0 makes the shader return fully lit.
+  private uploadShadow(loc: Record<string, WebGLUniformLocation | null>) {
+    const gl = this.gl;
+    const fit = this.shadowFit;
+    const on = this.shadowActive && fit !== null && this.shadowMap !== null && this.shadowMap.complete;
+    if (!on || !fit) {
+      gl.uniform1i(loc.uEnableShadows, 0);
+      return;
+    }
+    const sm = this.shadowMap!;
+    gl.activeTexture(gl.TEXTURE0 + SHADOW_TEXTURE_UNIT);
+    gl.bindTexture(gl.TEXTURE_2D, sm.texture);
+    gl.uniform1i(loc.uShadowMap, SHADOW_TEXTURE_UNIT);
+    gl.uniformMatrix4fv(loc.uShadowMatrix, false, fit.matrix.elements);
+    gl.uniform2f(loc.uShadowTexelUV, 1 / sm.size, 1 / sm.size);
+    gl.uniform1f(loc.uShadowTexel, fit.texelWorld);
+    gl.uniform1f(loc.uShadowBias, this.shadows.bias);
+    gl.uniform1f(loc.uShadowNormalBias, this.shadows.normalBias);
+    gl.uniform1f(loc.uShadowStrength, Math.max(0, Math.min(1, this.shadows.strength)));
+    gl.uniform1i(loc.uEnableShadows, 1);
+  }
+
+  // Depth-only pass from the light. Runs before the main target is bound.
+  private drawShadowPass(world: World) {
+    const gl = this.gl;
+    if (!this.shadowMap) this.shadowMap = new ShadowMap(gl, this.shadows.size);
+    else this.shadowMap.resize(this.shadows.size);
+    if (!this.shadowMap.complete) {
+      this.shadowActive = false;
+      return;
+    }
+    const dist = Math.max(1, this.shadows.distance);
+    this.shadowFit = fitDirectionalShadow({
+      lightDir: this.lightDir,
+      center: this.camera.target,
+      radius: dist,
+      mapSize: this.shadowMap.size,
+    });
+    const fit = this.shadowFit;
+    const sm = this.shadowMap;
+
+    // Casters: every mesh entity whose bounding sphere can reach the box.
+    const casters: { t: Transform; meshId: string }[] = [];
+    for (const e of world.query("transform", "mesh") as Entity[]) {
+      const t = world.get<Transform>(e, "transform")!;
+      const m = world.get<MeshRef>(e, "mesh")!;
+      if (!this.meshes.has(m.meshId)) continue;
+      const bound = this.meshBounds.get(m.meshId) ?? 1;
+      const r = bound * Math.max(t.scale.x, t.scale.y, t.scale.z);
+      if (!sphereInsideShadow(fit.matrix, t.position, r, fit.radius, fit.depthRange)) continue;
+      casters.push({ t, meshId: m.meshId });
+    }
+
+    sm.beginPass();
+    gl.enable(gl.DEPTH_TEST);
+    // Front-face culling: for closed geometry the stored depth is the far
+    // surface, which is what makes one compare enough against acne.
+    gl.cullFace(gl.FRONT);
+    gl.enable(gl.POLYGON_OFFSET_FILL);
+    gl.polygonOffset(1.4, 3.0);
+
+    // Instanced first (one VAO per mesh; attributes match INST_VERT_SRC).
+    const byMesh = new Map<string, { t: Transform; meshId: string }[]>();
+    for (const c of casters) {
+      const list = byMesh.get(c.meshId);
+      if (list) list.push(c);
+      else byMesh.set(c.meshId, [c]);
+    }
+    gl.useProgram(this.shadowInstProgram);
+    gl.uniformMatrix4fv(this.siloc.uView, false, fit.view.elements);
+    gl.uniformMatrix4fv(this.siloc.uProj, false, fit.proj.elements);
+    for (const [meshId, items] of byMesh) {
+      if (items.length < MIN_INSTANCES) continue;
+      let batch = this.instanced.get(meshId);
+      if (!batch) {
+        batch = new InstancedMesh(gl, this.meshData.get(meshId)!);
+        this.instanced.set(meshId, batch);
+      }
+      for (let start = 0; start < items.length; start += MAX_BATCH) {
+        const chunk = items.slice(start, start + MAX_BATCH);
+        for (let i = 0; i < chunk.length; i++) {
+          const { t } = chunk[i];
+          composeInstance(
+            this.scratch, i * FLOATS_PER_INSTANCE,
+            t.position.x, t.position.y, t.position.z, t.rotationY,
+            t.scale.x, t.scale.y, t.scale.z
+          );
+        }
+        batch.write(this.scratch, chunk.length);
+        batch.draw(chunk.length);
+        this.stats.shadowDraws++;
+      }
+    }
+
+    gl.useProgram(this.shadowProgram);
+    gl.uniformMatrix4fv(this.sloc.uView, false, fit.view.elements);
+    gl.uniformMatrix4fv(this.sloc.uProj, false, fit.proj.elements);
+    gl.uniform1f(this.sloc.uUVScale, 1);
+    for (const { t, meshId } of casters) {
+      if ((byMesh.get(meshId)?.length ?? 0) >= MIN_INSTANCES) continue;
+      const model = new Mat4().translate(t.position).rotateY(t.rotationY).scale(t.scale);
+      gl.uniformMatrix4fv(this.sloc.uModel, false, model.elements);
+      this.meshes.get(meshId)!.draw();
+      this.stats.shadowDraws++;
+    }
+
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    gl.cullFace(gl.BACK);
+    sm.endPass();
+    this.shadowActive = true;
+  }
+
   frame(world: World) {
     const gl = this.gl;
     this.resize();
@@ -324,6 +486,14 @@ export class Renderer {
     this.stats.instancedDraws = 0;
     this.stats.regularDraws = 0;
     this.stats.postDraws = 0;
+    this.stats.shadowDraws = 0;
+    // Shadow pass first, while the default framebuffer is still bound.
+    if (this.shadows.enabled && this.lightIntensity > 0.01) {
+      this.drawShadowPass(world);
+    } else {
+      this.shadowActive = false;
+      this.shadowFit = null;
+    }
     const usePost = this.post.enabled && this.post.count > 0;
     if (usePost) this.bindSceneTarget();
     else {

@@ -33,10 +33,10 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Rendering | `rendering/renderer.ts` + `shader.ts` | Single Blinn-Phong WebGL2 program, 1 dir + ≤4 point lights, textured, distance fog; v2.3 adds frustum culling + instanced batches + frame stats; v2.13 adds post chain (scene capture + grade/vignette composite, off by default) |
 | Meshes | `rendering/mesh.ts`, `obj.ts` | Cube/plane generators, minimal OBJ (`v/vn/f`), Uint16 indices |
 | Materials | `rendering/material.ts`, `MeshRef` | Legacy Phong fields (color/texture/shininess). **No PBR** |
-| Lights | `rendering/lights.ts` | Dir + point types (range unused by shader). No spots/shadows |
+| Lights | `rendering/lights.ts` | Dir + point types (range unused by shader). No spots/point shadows |
 | Textures | `rendering/texture.ts`, `proctex.ts` | RGBA8 upload + procedural canvas painter (faces, cloth, brick, grass, …). DOM-only creation |
 | Sky | `rendering/sky.ts` | Dawn/day/dusk/night palette lerp (colors only, no dome) |
-| Shadows | `rendering/shadows.ts` | Blob quads only. **No shadow maps** |
+| Shadows | `rendering/shadows.ts`, `shadowmap.ts` | Blob quads for contact shadows; v2.16 adds real single-cascade directional shadow mapping (ortho fit + world-texel snapping, front-face depth pass, 3x3 PCF, normal-offset + depth bias, strength, editor toggle) |
 | Physics | `physics/physics.ts` | Kinematic box/sphere/capsule vs static + ground plane, smallest-axis + normal-removal resolve, 32-bit layer/mask filtering. No dynamics-vs-dynamics |
 | Triggers | `physics/trigger.ts` | Center-in-box enter/exit. No extents test, no layers |
 | Raycast | `physics/raycast.ts` | Slab ray vs AABB, closest hit. No mask/normal |
@@ -58,9 +58,11 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 
 P0 (blocks everything above): **hierarchy** (done v2.2), **tests** (done v2.2),
 prefab assets with GUIDs, stable entity IDs, scene migration.
-P1: PBR material workflow, shadow mapping, ~~instancing + frustum culling~~ (done v2.3),
-collision layers/masks, sphere/capsule colliders, input actions/rebinding,
-audio samples + 3D pan, asset DB with import settings, undo/redo + gizmos.
+P1: PBR material workflow, ~~shadow mapping~~ (single directional cascade done
+v2.16; cascades + point/spot shadow maps still missing), ~~instancing + frustum
+culling~~ (done v2.3), collision layers/masks, sphere/capsule colliders, input
+actions/rebinding, audio samples + 3D pan, ~~asset DB with import settings~~
+(done v2.15), undo/redo + gizmos.
 P2: skeletal animation, particles, terrain, navmesh, scripting (Lua vs C#
 decision), post-processing stack, profilers, package manager, 2D renderer.
 
@@ -127,6 +129,8 @@ Next 3 subsystems in priority order:
   12. ~~Post-processing (grade + vignette composite, LUT baking, serializable chain)~~ DONE (v2.13; GL capture/composite path needs browser confirmation)
   13. ~~Frame profiler (injectable-clock scopes, counters/gauges, budgets, snapshots, HUD line)~~ DONE (v2.14)
   14. ~~Asset database (GUID registry, import settings, dependency graph, versioned JSON)~~ DONE (v2.15)
-Remaining future work (deferred until demanded by a real game): shadow maps, skeletal animation, package manager, 2D renderer, net host migration.
+  15. ~~Directional shadow mapping (ortho fit + texel snapping, depth pass, 3x3 PCF, normal-offset bias, editor toggle)~~ DONE (v2.16; GL path needs browser confirmation)
+Remaining future work (deferred until demanded by a real game): cascaded/point/spot
+shadows, skeletal animation, package manager, 2D renderer, net host migration.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
 navmesh, particles GPU, C#/Lua scripting, packages, consoles/mobile.
