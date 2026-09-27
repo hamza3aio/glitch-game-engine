@@ -7,6 +7,7 @@ import { Input } from "../input/input.js";
 import { AudioEngine } from "../audio/audio.js";
 import { FrameProfiler } from "../debug/profiler.js";
 import { AssetDB } from "../assets/db.js";
+import { QualitySettings } from "./quality.js";
 
 export class Engine {
   world = new World();
@@ -17,12 +18,16 @@ export class Engine {
   audio = new AudioEngine();
   profiler = new FrameProfiler();
   assets = new AssetDB();
+  /** Player-facing graphics configuration (loaded from localStorage). */
+  quality = QualitySettings.load();
   loop: GameLoop;
   private systems: ((dt: number) => void)[] = [];
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new Renderer(canvas);
     this.input.attach(canvas);
+    // Quality drives resolution scale, shadow/post state and frame pacing.
+    this.renderer.applyQuality(this.quality);
     this.loop = new GameLoop(
       (dt) => {
         this.profiler.scoped("systems", () => { for (const s of this.systems) s(dt); });
@@ -31,6 +36,8 @@ export class Engine {
         this.profiler.gauge("entities", this.world.count());
       },
       () => {
+        // Re-applied every frame so a settings change needs no restart.
+        this.profiler.scoped("quality", () => this.renderer.applyQuality(this.quality));
         this.profiler.scoped("render", () => this.renderer.frame(this.world));
         const st = this.renderer.stats;
         this.profiler.gauge("drawn", st.drawn);
@@ -39,7 +46,11 @@ export class Engine {
         this.profiler.gauge("post", st.postDraws);
       },
       1 / 60,
-      () => { this.input.endFrame(); this.profiler.frame(); }
+      () => {
+        this.input.endFrame();
+        this.loop.minFrameMs = this.quality.fpsLimitMs;
+        this.profiler.frame();
+      }
     );
   }
 

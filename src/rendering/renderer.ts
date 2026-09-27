@@ -9,6 +9,8 @@ import { InstancedMesh, FLOATS_PER_INSTANCE, MAX_BATCH, MIN_INSTANCES, composeIn
 import type { PointLight } from "./lights.js";
 import { PostChain } from "./post.js";
 import { ShadowMap, fitDirectionalShadow, sphereInsideShadow, type ShadowFit } from "./shadowmap.js";
+import type { QualitySettings } from "../core/quality.js";
+import { TONE_MAP_MODES, type ToneMapMode } from "./tonemap.js";
 
 export interface ShadowSettings {
   enabled: boolean;
@@ -30,7 +32,17 @@ const SHADOW_UNIFORM_NAMES = [
   "uShadowBias", "uShadowNormalBias", "uShadowStrength", "uEnableShadows",
 ] as const;
 
+const TONEMAP_UNIFORM_NAMES = ["uTonemap", "uExposure", "uGamma"] as const;
+
 const SHADOW_TEXTURE_UNIT = 4; // 0..3 are used by the terrain splat/detail set
+
+// Output stage (Phase 2). All three are no-ops at their defaults, so turning
+// them on is always an explicit, opt-in change.
+export interface TonemapSettings {
+  mode: ToneMapMode;
+  exposure: number;
+  gamma: number;
+}
 import type { TerrainMaterial } from "../world/terrain.js";
 import type { Entity } from "../ecs/world.js";
 import { World } from "../ecs/world.js";
@@ -84,7 +96,16 @@ export class Renderer {
   private tloc: Record<string, WebGLUniformLocation | null> = {};
   private postloc: Record<string, WebGLUniformLocation | null> = {};
   post = new PostChain();
+  /** Render-resolution multiplier from the quality config (0.5..1). */
+  pixelScale = 1;
+  /** Master fog switch (quality config). */
+  fogEnabled = true;
+  /** Upper bound on point lights uploaded to shaders (0..4). */
+  maxPointLights = 4;
   shadows: ShadowSettings = defaultShadowSettings();
+  tonemap: TonemapSettings = { mode: "none", exposure: 1, gamma: 1 };
+  /** Optional player-facing quality config; applied on every frame. */
+  quality: QualitySettings | null = null;
   private shadowProgram!: WebGLProgram;
   private shadowInstProgram!: WebGLProgram;
   private shadowMap: ShadowMap | null = null;
@@ -110,6 +131,7 @@ export class Renderer {
       "uPointCount", "uPointPos", "uPointColor",
       "uFogColor", "uFogNear", "uFogFar",
       ...SHADOW_UNIFORM_NAMES,
+      ...TONEMAP_UNIFORM_NAMES,
     ]) {
       this.loc[name] = gl.getUniformLocation(this.program, name);
     }
@@ -120,6 +142,7 @@ export class Renderer {
       "uPointCount", "uPointPos", "uPointColor",
       "uFogColor", "uFogNear", "uFogFar",
       ...SHADOW_UNIFORM_NAMES,
+      ...TONEMAP_UNIFORM_NAMES,
     ]) {
       this.iloc[name] = gl.getUniformLocation(this.instProgram, name);
     }
@@ -136,6 +159,7 @@ export class Renderer {
       "uFogColor", "uFogNear", "uFogFar",
       "uSkyColor", "uGroundColor", "uAmbientStrength",
       ...SHADOW_UNIFORM_NAMES,
+      ...TONEMAP_UNIFORM_NAMES,
     ]) {
       this.ploc[name] = gl.getUniformLocation(this.pbrProgram, name);
     }
@@ -148,6 +172,7 @@ export class Renderer {
       "uPointCount", "uPointPos", "uPointColor",
       "uFogColor", "uFogNear", "uFogFar",
       ...SHADOW_UNIFORM_NAMES,
+      ...TONEMAP_UNIFORM_NAMES,
     ]) {
       this.tloc[name] = gl.getUniformLocation(this.terrainProgram, name);
     }
@@ -202,8 +227,9 @@ export class Renderer {
 
   resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.floor(this.canvas.clientWidth * dpr) || Math.floor(window.innerWidth * dpr);
-    const h = Math.floor(this.canvas.clientHeight * dpr) || Math.floor(window.innerHeight * dpr);
+    const scale = Math.max(0.5, Math.min(1, this.pixelScale));
+    const w = Math.floor((this.canvas.clientWidth * dpr) * scale) || Math.floor(window.innerWidth * dpr * scale);
+    const h = Math.floor((this.canvas.clientHeight * dpr) * scale) || Math.floor(window.innerHeight * dpr * scale);
     if (this.canvas.width !== w || this.canvas.height !== h) {
       this.canvas.width = w;
       this.canvas.height = h;
@@ -216,14 +242,15 @@ export class Renderer {
     gl.uniformMatrix4fv(loc.uView, false, view.elements);
     gl.uniformMatrix4fv(loc.uProj, false, proj.elements);
     this.uploadShadow(loc);
+    this.uploadTonemap(loc);
     gl.uniform3fv(loc.uLightDir, this.lightDir.toArray() as unknown as Float32List);
     gl.uniform1f(loc.uLightIntensity, this.lightIntensity);
     gl.uniform3fv(loc.uCamPos, this.camera.position.toArray() as unknown as Float32List);
     gl.uniform1i(loc.uMap, 0);
     gl.uniform3fv(loc.uFogColor, this.fogColor as unknown as Float32List);
     gl.uniform1f(loc.uFogNear, this.fogNear);
-    gl.uniform1f(loc.uFogFar, this.fogFar);
-    const count = Math.min(4, this.pointLights.length);
+    gl.uniform1f(loc.uFogFar, this.fogEnabled ? this.fogFar : 1e9);
+    const count = Math.max(0, Math.min(4, this.pointLights.length, this.maxPointLights));
     gl.uniform1i(loc.uPointCount, count);
     if (count > 0) {
       const posArr = new Float32Array(12);
@@ -362,6 +389,34 @@ export class Renderer {
       this.stats.instancedDraws++;
       this.stats.drawn += chunk.length;
     }
+  }
+
+  // Exposure / tone map / gamma for any lit program.
+  private uploadTonemap(loc: Record<string, WebGLUniformLocation | null>) {
+    const gl = this.gl;
+    const mode = TONE_MAP_MODES.indexOf(this.tonemap.mode);
+    gl.uniform1i(loc.uTonemap, mode < 0 ? 0 : mode);
+    gl.uniform1f(loc.uExposure, Math.max(0, this.tonemap.exposure));
+    gl.uniform1f(loc.uGamma, Math.max(1, this.tonemap.gamma));
+  }
+
+  // Pushes the player-facing quality config into renderer state. Called by
+  // the engine every frame so a settings change needs no reload.
+  applyQuality(q: QualitySettings): void {
+    const c = q.config;
+    this.quality = q;
+    this.pixelScale = c.pixelScale;
+    this.tonemap.mode = c.tonemap;
+    this.tonemap.exposure = c.exposure;
+    this.tonemap.gamma = c.gamma;
+    this.shadows.enabled = c.shadowSize > 0;
+    this.shadows.size = c.shadowSize;
+    this.shadows.distance = c.shadowDistance;
+    this.camera.far = c.viewDistance;
+    this.fogEnabled = c.fogEnabled;
+    this.fogFar = c.viewDistance;
+    this.post.enabled = c.postEnabled;
+    this.maxPointLights = c.pointLights;
   }
 
   // Shadow uniforms for any lit program. When shadows are off the sampler

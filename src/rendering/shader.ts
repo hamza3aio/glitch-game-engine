@@ -59,6 +59,28 @@ export const SHADOW_RECEIVER_GLSL = `float shadowFactor(vec3 worldPos, vec3 N, v
   return mix(1.0, s, uShadowStrength);
 }`;
 
+// Output stage shared by every lit shader: exposure -> tone map -> gamma.
+// Mirrors tonemapPixel() in tonemap.ts. Default (mode 0, gamma 1) is an
+// exact no-op so existing renders are byte-identical.
+export const TONEMAP_GLSL = `uniform int uTonemap;
+uniform float uExposure;
+uniform float uGamma;
+vec3 tonemapOut(vec3 c) {
+  c *= uExposure;
+  if (uTonemap == 1) {
+    c = c / (1.0 + c);
+  } else if (uTonemap == 2) {
+    const float a = 2.51, b = 0.03, cc = 2.43, d = 0.59, e = 0.14;
+    c = clamp((c * (a * c + b)) / (c * (cc * c + d) + e), 0.0, 1.0);
+  } else {
+    c = clamp(c, 0.0, 1.0);
+  }
+  if (uGamma != 1.0) c = pow(max(c, vec3(0.0)), vec3(1.0 / uGamma));
+  return c;
+}`;
+
+export const TONEMAP_UNIFORMS = "uniform int uTonemap;\nuniform float uExposure;\nuniform float uGamma;";
+
 export const FRAG_SRC = `#version 300 es
 precision mediump float;
 in vec3 vNormal;
@@ -78,6 +100,7 @@ uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
 out vec4 outColor;
+${TONEMAP_UNIFORMS}
 ${SHADOW_UNIFORMS_GLSL}
 ${SHADOW_RECEIVER_GLSL}
 void main() {
@@ -107,7 +130,7 @@ void main() {
   float fd = length(vWorldPos - uCamPos);
   float f = smoothstep(uFogNear, uFogFar, fd);
   col = mix(col, uFogColor, f);
-  outColor = vec4(col, 1.0);
+  outColor = vec4(tonemapOut(col), 1.0);
 }`;
 
 export function compileShader(gl: WebGL2RenderingContext, type: number, src: string) {
@@ -175,6 +198,7 @@ uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
 out vec4 outColor;
+${TONEMAP_UNIFORMS}
 ${SHADOW_UNIFORMS_GLSL}
 ${SHADOW_RECEIVER_GLSL}
 void main() {
@@ -203,7 +227,7 @@ void main() {
   float fd = length(vWorldPos - uCamPos);
   float f = smoothstep(uFogNear, uFogFar, fd);
   col = mix(col, uFogColor, f);
-  outColor = vec4(col, 1.0);
+  outColor = vec4(tonemapOut(col), 1.0);
 }`;
 
 // PBR direct-lighting fragment (Cook-Torrance GGX + Schlick + Smith).
@@ -249,6 +273,7 @@ uniform vec3 uSkyColor;
 uniform vec3 uGroundColor;
 uniform float uAmbientStrength;
 out vec4 outColor;
+${TONEMAP_UNIFORMS}
 ${SHADOW_UNIFORMS_GLSL}
 ${SHADOW_RECEIVER_GLSL}
 
@@ -322,7 +347,7 @@ void main() {
   float fd = length(vWorldPos - uCamPos);
   float f = smoothstep(uFogNear, uFogFar, fd);
   col = mix(col, uFogColor, f);
-  outColor = vec4(col, alpha);
+  outColor = vec4(tonemapOut(col), alpha);
 }`;
 
 // Terrain fragment: splat-mapped matte surfacing (no specular — earth doesn't
@@ -348,6 +373,7 @@ uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
 out vec4 outColor;
+${TONEMAP_UNIFORMS}
 ${SHADOW_UNIFORMS_GLSL}
 ${SHADOW_RECEIVER_GLSL}
 void main() {
@@ -374,7 +400,7 @@ void main() {
   float fd = length(vWorldPos - uCamPos);
   float f = smoothstep(uFogNear, uFogFar, fd);
   col = mix(col, uFogColor, f);
-  outColor = vec4(col, 1.0);
+  outColor = vec4(tonemapOut(col), 1.0);
 }`;
 
 // --- shadow depth pass (v2.16) ---

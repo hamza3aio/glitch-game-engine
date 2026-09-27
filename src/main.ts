@@ -3,6 +3,7 @@ import { LoadingScreen, nextFrame } from "./core/loading.js";
 import { Vec3 } from "./math/vec3.js";
 import { CharacterController } from "./physics/character.js";
 import { InputActions } from "./input/actions.js";
+import { QUALITY_LEVELS } from "./core/quality.js";
 import { skyAt } from "./rendering/sky.js";
 import { hideBlob, makeBlob, stickBlob } from "./rendering/shadows.js";
 import { paintAsphalt, paintBrick, paintGrass, paintNoiseNormal, paintRoof, paintSign } from "./rendering/proctex.js";
@@ -387,7 +388,7 @@ async function build() {
     if (!editor.visible) editor.toggle();
   }
   await loader.hide();
-  menu.show(true, "v2.16.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag mouse, H toggles shadows.");
+  menu.show(true, "v2.17.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
 }
 
 async function enter() {
@@ -515,7 +516,7 @@ engine.addSystem((dt) => {
   }
   stickBlob(world, blobB, 6, 0, -6);
 
-  stats.textContent = `${engine.loop.time.fps} fps · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} shdw ${renderer.stats.shadowDraws} fx ${fx.aliveCount} assets ${engine.assets.count} · ${engine.profiler.formatLine()} · ${clockText()}`;
+  stats.textContent = `${engine.loop.time.fps} fps · ${engine.quality.level} · res ${Math.round(renderer.pixelScale * 100)}% · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} shdw ${renderer.stats.shadowDraws} fx ${fx.aliveCount} assets ${engine.assets.count} · ${engine.profiler.formatLine()} · ${clockText()}`;
 });
 
 const unlock = () => audio.resume();
@@ -526,6 +527,14 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyH" && (e.target as HTMLElement).tagName !== "INPUT") {
     renderer.shadows.enabled = !renderer.shadows.enabled;
     showToast(`Shadows ${renderer.shadows.enabled ? "ON" : "OFF"} (${renderer.shadows.size}px cascade)`);
+  }
+  if (e.code === "KeyQ" && (e.target as HTMLElement).tagName !== "INPUT") {
+    // Cycle the quality preset (Phase 21: player-facing graphics settings).
+    const i = QUALITY_LEVELS.indexOf(engine.quality.level);
+    const next = QUALITY_LEVELS[(i + 1) % QUALITY_LEVELS.length];
+    engine.quality.applyPreset(next);
+    engine.quality.save();
+    showToast(`Quality: ${next} (${Math.round(engine.quality.config.pixelScale * 100)}% res, ${engine.quality.config.fpsLimit || "uncapped"} fps, shadows ${engine.quality.config.shadowSize || "off"})`);
   }
 });
 

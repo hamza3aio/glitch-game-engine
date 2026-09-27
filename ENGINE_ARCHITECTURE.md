@@ -29,7 +29,9 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Math | `math/vec3.ts`, `math/mat4.ts` | Vec3 + column-major Mat4 (perspective, lookAt, compose); **rotationY only** in practice |
 | ECS store | `ecs/world.ts`, `ecs/components.ts` | String-keyed component maps, AND queries. **Flat: no hierarchy** |
 | Hierarchy | `ecs/hierarchy.ts` (NEW, v2.2) | Parent/child, world matrices, cycle guard, cascade destroy |
-| Core loop | `core/{engine,loop,time,loading}.ts` | Fixed-step accumulator (1/60, 4-substep guard), FPS clock, staged DOM loading screen; v2.14 profiles every frame (systems/physics/triggers/render scopes + entity/draw gauges) |
+| Core loop | `core/{engine,loop,time,loading}.ts` | Fixed-step accumulator (1/60, 4-substep guard), FPS clock, staged DOM loading screen; v2.14 profiles every frame; v2.17 caps presentation rate from the quality config |
+| Quality | `core/quality.ts` (NEW, v2.17) | 4 presets (low/medium/high/ultra), field sanitisation, versioned localStorage persistence, render-scale + FPS limit, exposed as `Engine.quality` |
+| Tonemap | `rendering/tonemap.ts` + `TONEMAP_GLSL` (NEW, v2.17) | Exposure -> Reinhard/ACES -> gamma output stage, shared by all four lit programs; no-op at defaults |
 | Rendering | `rendering/renderer.ts` + `shader.ts` | Single Blinn-Phong WebGL2 program, 1 dir + ≤4 point lights, textured, distance fog; v2.3 adds frustum culling + instanced batches + frame stats; v2.13 adds post chain (scene capture + grade/vignette composite, off by default) |
 | Meshes | `rendering/mesh.ts`, `obj.ts` | Cube/plane generators, minimal OBJ (`v/vn/f`), Uint16 indices |
 | Materials | `rendering/material.ts`, `MeshRef` | Legacy Phong fields (color/texture/shininess). **No PBR** |
@@ -130,6 +132,7 @@ Next 3 subsystems in priority order:
   13. ~~Frame profiler (injectable-clock scopes, counters/gauges, budgets, snapshots, HUD line)~~ DONE (v2.14)
   14. ~~Asset database (GUID registry, import settings, dependency graph, versioned JSON)~~ DONE (v2.15)
   15. ~~Directional shadow mapping (ortho fit + texel snapping, depth pass, 3x3 PCF, normal-offset bias, editor toggle)~~ DONE (v2.16; GL path needs browser confirmation)
+  16. ~~Quality settings (4 presets, sanitisation, localStorage persistence, resolution scaling, FPS cap) + exposure/tone-mapping/gamma output stage~~ DONE (v2.17; GL path needs browser confirmation)
 Remaining future work (deferred until demanded by a real game): cascaded/point/spot
 shadows, skeletal animation, package manager, 2D renderer, net host migration.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
