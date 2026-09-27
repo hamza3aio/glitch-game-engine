@@ -30,7 +30,7 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | ECS store | `ecs/world.ts`, `ecs/components.ts` | String-keyed component maps, AND queries. **Flat: no hierarchy** |
 | Hierarchy | `ecs/hierarchy.ts` (NEW, v2.2) | Parent/child, world matrices, cycle guard, cascade destroy |
 | Core loop | `core/{engine,loop,time,loading}.ts` | Fixed-step accumulator (1/60, 4-substep guard), FPS clock, staged DOM loading screen |
-| Rendering | `rendering/renderer.ts` + `shader.ts` | Single Blinn-Phong WebGL2 program, 1 dir + ≤4 point lights, textured, distance fog; v2.3 adds frustum culling + instanced batches + frame stats |
+| Rendering | `rendering/renderer.ts` + `shader.ts` | Single Blinn-Phong WebGL2 program, 1 dir + ≤4 point lights, textured, distance fog; v2.3 adds frustum culling + instanced batches + frame stats; v2.13 adds post chain (scene capture + grade/vignette composite, off by default) |
 | Meshes | `rendering/mesh.ts`, `obj.ts` | Cube/plane generators, minimal OBJ (`v/vn/f`), Uint16 indices |
 | Materials | `rendering/material.ts`, `MeshRef` | Legacy Phong fields (color/texture/shininess). **No PBR** |
 | Lights | `rendering/lights.ts` | Dir + point types (range unused by shader). No spots/shadows |
@@ -123,6 +123,7 @@ Next 3 subsystems in priority order:
   9. ~~Terrain~~ DONE (v2.10; GL path needs browser confirmation)
   10. ~~Navigation + AI~~ DONE (v2.11; live crowd needs browser confirmation)
   11. ~~Lua scripting~~ DONE (v2.12; live browser run pending like other GL paths)
-Then post-processing, profilers.
+  12. ~~Post-processing (grade + vignette composite, LUT baking, serializable chain)~~ DONE (v2.13; GL capture/composite path needs browser confirmation)
+Then profilers.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,
 navmesh, particles GPU, C#/Lua scripting, packages, consoles/mobile.

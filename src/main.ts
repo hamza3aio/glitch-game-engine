@@ -361,6 +361,11 @@ async function build() {
     const first = findPath(navGrid, PATROL[0].x, PATROL[0].z, PATROL[1].x, PATROL[1].z);
     if (first) setPath(world, npcABody, first, 2.2);
   }
+  // post-processing showcase: subtle night-shift grade + vignette.
+  renderer.post.enabled = true;
+  renderer.post.add("grade");
+  renderer.post.setGrade(0, { contrast: 1.06, saturation: 1.08 });
+  renderer.post.add("vignette");
   if (params.has("editor")) {
     editor = new EditorOverlay(world, document.getElementById("ui")!, {
       addTex, projectPath: () => params.get("project"), mats: renderer.materials,
@@ -375,7 +380,7 @@ async function build() {
     if (!editor.visible) editor.toggle();
   }
   await loader.hide();
-  menu.show(true, "v2.0.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag mouse.");
+  menu.show(true, "v2.13.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag mouse.");
 }
 
 async function enter() {
