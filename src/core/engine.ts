@@ -9,6 +9,7 @@ import { FrameProfiler } from "../debug/profiler.js";
 import { AssetDB } from "../assets/db.js";
 import { QualitySettings } from "./quality.js";
 import { Logger } from "../debug/logger.js";
+import { PluginHost } from "../plugins/host.js";
 
 export class Engine {
   world = new World();
@@ -23,6 +24,10 @@ export class Engine {
   quality = QualitySettings.load();
   /** Central log + error sink (Phase 19). */
   log = new Logger({ mirror: false });
+  /** Plugin host (Phase 22): systems/importers/panels from extensions. */
+  plugins = new PluginHost({ onError: (name, err) => {
+    this.log.error("plugins", `"${name}" failed`, undefined, err);
+  } });
   loop: GameLoop;
   private systems: ((dt: number) => void)[] = [];
   private systemNames: string[] = [];
@@ -52,6 +57,7 @@ export class Engine {
         });
         this.profiler.scoped("physics", () => this.physics.step(this.world, dt));
         this.profiler.scoped("triggers", () => this.triggers.update(this.world));
+        this.profiler.scoped("plugins", () => { this.plugins.update(dt, this.world); });
         this.profiler.gauge("entities", this.world.count());
       },
       () => {

@@ -15,6 +15,8 @@ import { mountConsole, type ConsoleView } from "./debug/console.js";
 import { AnimatorSystem, clipKey, makeAnimator, makeAnimEntity, type ClipBank } from "./anim/animator.js";
 import { registerDemoCharacter } from "./anim/demo.js";
 import { limbColumn } from "./rendering/skinning.js";
+import { SAMPLE_MANIFEST, type PluginSystem } from "./plugins/host.js";
+import { loadPlugins } from "./plugins/loader.js";
 import { buildActor, poseActor, type ActorRig } from "./scene/actor.js";
 import { ParticleSystem, type EmitterDef } from "./fx/particles.js";
 import { ScriptRuntime } from "./script/script.js";
@@ -76,6 +78,42 @@ const animators = new AnimatorSystem(world, animBank);
 animators.onEvent = (e) => engine.log.info("anim", `event ${e.name} at ${e.time.toFixed(2)}s`);
 // Set by the movement code; drives the walk/idle state machine.
 let movingPlayer = false;
+
+// Plugins (Phase 22): a bundled demo plugin plus whatever the desktop host
+// finds in <userData>/plugins.
+let pluginReport = { loaded: [] as string[], skipped: [] as { name: string; reason: string }[] };
+void loadPlugins(engine.plugins, {
+  bundled: [{
+    manifest: SAMPLE_MANIFEST,
+    module: {
+      provide: {
+        "component:weather": { kind: "weather", intensity: 1 },
+        "system:weather-tick": {
+          update: (dt: number, w) => {
+            // Demonstrates a plugin touching engine state through the World.
+            for (const e of w.query("light")) {
+              const l = w.get<{ intensity: number }>(e, "light");
+              if (l) l.intensity = Math.max(0, l.intensity - dt * 0.05);
+            }
+          },
+        } satisfies PluginSystem,
+        "tool:weather-now": { label: "Weather: report lights", run: () => engine.log.info("weather", `${renderer.pointLights.length} point lights, ${renderer.spotLights.length} spots`) },
+      },
+      setup: (host) => {
+        engine.log.info("plugins", `bundled plugin ready (${host.registry.size} extensions registered after load)`);
+      },
+    },
+  }],
+  disk: [],
+  onError: (name, reason) => engine.log.error("plugins", `${name}: ${reason}`),
+}).then((r) => {
+  pluginReport = r;
+  engine.log.info("plugins", `loaded ${r.loaded.length}, skipped ${r.skipped.length}`);
+  if (window.glitch?.readPlugins) {
+    // Desktop: pull disk plugins once the module graph is settled.
+    void window.glitch.readPlugins().then((disk) => loadPlugins(engine.plugins, { disk, onError: (n, reason) => engine.log.error("plugins", `${n}: ${reason}`) }));
+  }
+});
 let consoleView: ConsoleView | null = null;
 const openConsole = () => {
   if (consoleView) {
@@ -459,7 +497,7 @@ async function build() {
     if (!editor.visible) editor.toggle();
   }
   await loader.hide();
-  menu.show(true, "v2.22.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
+  menu.show(true, "v2.23.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
 }
 
 async function enter() {
@@ -594,7 +632,7 @@ engine.addSystem((dt) => {
   }
   stickBlob(world, blobB, 6, 0, -6);
 
-  stats.textContent = `${engine.loop.time.fps} fps · ${engine.quality.level} · res ${Math.round(renderer.pixelScale * 100)}% · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} shdw ${renderer.stats.shadowDraws} fx ${fx.aliveCount} assets ${engine.assets.count} · ${engine.profiler.formatLine()} · ${clockText()}`;
+  stats.textContent = `${engine.loop.time.fps} fps · ${engine.quality.level} · res ${Math.round(renderer.pixelScale * 100)}% · crates ${carried + delivered}/5 · delivered ${delivered}/5 · draw ${renderer.stats.drawn}/${renderer.stats.total} culled ${renderer.stats.culled} inst ${renderer.stats.instancedDraws} shdw ${renderer.stats.shadowDraws} skn ${renderer.stats.skinnedDraws} fx ${fx.aliveCount} plugins ${engine.plugins.loaded.length} assets ${engine.assets.count} · ${engine.profiler.formatLine()} · ${clockText()}`;
 });
 
 const unlock = () => audio.resume();

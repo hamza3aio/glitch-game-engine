@@ -8,6 +8,8 @@ interface GlitchBridge {
   showInFolder(path: string): Promise<boolean>;
   readScene(path: string): Promise<{ project: string | null; scene: string | null }>;
   writeScene(path: string, scene: string): Promise<boolean>;
+  readPlugins(): Promise<{ dir: string; manifest?: unknown; entry?: string | null; error?: string }[]>;
+  writePlugin(dir: string, manifest: unknown, entry?: string): Promise<{ dir: string }>;
   onOpenProject(fn: (q: Record<string, string>) => void): void;
 }
 

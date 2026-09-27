@@ -143,6 +143,48 @@ ipcMain.handle("glitch:write-scene", (_e, { path: p, scene }) => {
   return true;
 });
 
+// Plugin discovery: every subfolder of <userData>/plugins with a
+// plugin.json. Returns manifests + entry file text; the renderer validates
+// and instantiates them (never eval'd in the main process).
+ipcMain.handle("glitch:read-plugins", () => {
+  const root = path.join(app.getPath("userData"), "plugins");
+  const out = [];
+  let dirs = [];
+  try {
+    dirs = fs.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory());
+  } catch {
+    return out;
+  }
+  for (const d of dirs) {
+    const dir = path.join(root, d.name);
+    try {
+      const manifest = JSON.parse(fs.readFileSync(path.join(dir, "plugin.json"), "utf8"));
+      let entry = null;
+      if (manifest && typeof manifest.entry === "string") {
+        // Entry modules are plain ESM text handed to the renderer, which
+        // imports them via a blob URL (the window has no fs access).
+        const entryPath = path.join(dir, path.basename(manifest.entry));
+        if (fs.existsSync(entryPath)) entry = fs.readFileSync(entryPath, "utf8");
+      }
+      out.push({ dir, manifest, entry });
+    } catch (err) {
+      out.push({ dir, error: String(err && err.message ? err.message : err) });
+    }
+  }
+  return out;
+});
+
+ipcMain.handle("glitch:write-plugin", (_e, { dir, manifest, entry }) => {
+  const root = path.join(app.getPath("userData"), "plugins");
+  const target = path.join(root, path.basename(String(dir || "")));
+  fs.mkdirSync(target, { recursive: true });
+  fs.writeFileSync(path.join(target, "plugin.json"), JSON.stringify(manifest, null, 2));
+  if (typeof entry === "string" && manifest && typeof manifest.entry === "string") {
+    fs.writeFileSync(path.join(target, path.basename(manifest.entry)), entry);
+  }
+  return { dir: target };
+});
+
 app.whenReady().then(() => {
   createLauncher();
   app.on("activate", () => {

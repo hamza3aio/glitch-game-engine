@@ -47,6 +47,25 @@ export function registerDefaultCommands(reg: CommandRegistry, engine: Engine, wo
     };
   }, ["ls"]);
 
+  reg.register("plugins", (args) => {
+    const sub = args.trim().toLowerCase();
+    if (sub === "reload" || sub === "unload" || sub.startsWith("unload ")) {
+      const name = args.trim().split(/\s+/)[1] ?? "";
+      if (!name) return { ok: false, output: "usage: plugins unload <name>" };
+      const n = engine.plugins.unload(name, world);
+      return { ok: n > 0, output: n > 0 ? `unloaded "${name}" (${n} extensions removed)` : `"${name}" was not loaded` };
+    }
+    const list = engine.plugins.loaded;
+    if (list.length === 0) return { ok: true, output: "no plugins loaded" };
+    return {
+      ok: true,
+      output: [
+        `${list.length} plugins, ${engine.plugins.registry.size} extensions, ${engine.plugins.systemCount} systems`,
+        ...list.map((p) => `  ${p.manifest.name}@${p.manifest.version} — ${p.extensions} extensions${p.manifest.description ? ` (${p.manifest.description})` : ""}`),
+      ].join("\n"),
+    };
+  });
+
   reg.register("quality", (args) => {
     const want = args.trim().toLowerCase();
     if (want.length > 0) {

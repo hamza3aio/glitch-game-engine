@@ -12,5 +12,7 @@ contextBridge.exposeInMainWorld("glitch", {
   showInFolder: (path) => ipcRenderer.invoke("glitch:show-in-folder", { path }),
   readScene: (path) => ipcRenderer.invoke("glitch:read-scene", { path }),
   writeScene: (path, scene) => ipcRenderer.invoke("glitch:write-scene", { path, scene }),
+  readPlugins: () => ipcRenderer.invoke("glitch:read-plugins"),
+  writePlugin: (dir, manifest, entry) => ipcRenderer.invoke("glitch:write-plugin", { dir, manifest, entry }),
   onOpenProject: (fn) => ipcRenderer.on("open-project", (_e, q) => fn(q)),
 });
