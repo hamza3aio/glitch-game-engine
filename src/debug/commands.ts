@@ -1,0 +1,115 @@
+// Glitch standard console commands — the commands a game gets for free
+// (Phase 19 / command-palette groundwork). Each command is a thin adapter
+// over real engine state; nothing here is cosmetic.
+
+import type { Engine } from "../core/engine.js";
+import type { World } from "../ecs/world.js";
+import { CommandRegistry, type CommandResult } from "./logger.js";
+import { QUALITY_LEVELS } from "../core/quality.js";
+
+export function registerDefaultCommands(reg: CommandRegistry, engine: Engine, world: World): CommandRegistry {
+  reg.register("help", () => ({
+    ok: true,
+    output: reg.names().filter((n, i, a) => a.indexOf(n) === i).join(", "),
+  }));
+
+  reg.register("clear", () => {
+    engine.log.clear();
+    return { ok: true, output: "log cleared" };
+  });
+
+  reg.register("stats", () => {
+    const p = engine.profiler.snapshot();
+    const r = engine.renderer.stats;
+    return {
+      ok: true,
+      output: [
+        `frame ${p.frameMsAvg.toFixed(2)}ms (max ${p.frameMsMax.toFixed(2)}ms) ~${p.fps.toFixed(0)}fps over ${p.frames} frames`,
+        p.scopes.map((s) => `  ${s.label} avg ${s.avgMs.toFixed(2)}ms max ${s.maxMs.toFixed(2)}ms x${s.calls}`).join("\n"),
+        `render drawn ${r.drawn}/${r.total} culled ${r.culled} inst ${r.instancedDraws} shadow ${r.shadowDraws} post ${r.postDraws}`,
+        `world entities ${world.count()} assets ${engine.assets.count} lights ${engine.renderer.pointLights.length}+${engine.renderer.spotLights.length}s`,
+      ].join("\n"),
+    };
+  }, ["st"]);
+
+  reg.register("entities", (args) => {
+    const q = args.trim();
+    const list = world.query("transform");
+    const filtered = q ? list.filter((e) => String(e) === q) : list;
+    const head = filtered.slice(0, 20);
+    return {
+      ok: true,
+      output: `${filtered.length} entities${q ? ` matching "${q}"` : ""}\n${head.map((e) => {
+        const t = world.get<{ position: { x: number; y: number; z: number } }>(e, "transform");
+        const p = t ? `${t.position.x.toFixed(1)},${t.position.y.toFixed(1)},${t.position.z.toFixed(1)}` : "?";
+        return `  #${e} @ ${p}`;
+      }).join("\n")}${filtered.length > head.length ? `\n  … ${filtered.length - head.length} more` : ""}`,
+    };
+  }, ["ls"]);
+
+  reg.register("quality", (args) => {
+    const want = args.trim().toLowerCase();
+    if (want.length > 0) {
+      if (!(QUALITY_LEVELS as string[]).includes(want)) {
+        return { ok: false, output: `unknown level "${want}" (try: ${QUALITY_LEVELS.join(", ")})` };
+      }
+      engine.quality.applyPreset(want as (typeof QUALITY_LEVELS)[number]);
+      engine.quality.save();
+    }
+    const c = engine.quality.config;
+    return {
+      ok: true,
+      output: `level ${c.level} · res ${Math.round(c.pixelScale * 100)}% · fps ${c.fpsLimit || "uncapped"} · shadows ${c.shadowSize || "off"} · view ${c.viewDistance} · post ${c.postEnabled ? "on" : "off"} · tonemap ${c.tonemap} gamma ${c.gamma}`,
+    };
+  });
+
+  reg.register("shadows", (args) => {
+    const s = engine.renderer.shadows;
+    const toks = args.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const sub = toks[0] ?? "";
+    if (sub === "on" || sub === "off") s.enabled = sub === "on";
+    else if (sub === "size") {
+      const n = Number(toks[1]);
+      if (!Number.isFinite(n) || n < 0) return { ok: false, output: "usage: shadows size <0-8192>" };
+      s.size = n;
+      s.enabled = n > 0;
+    } else if (sub.length > 0) {
+      return { ok: false, output: "usage: shadows [on|off|size <n>]" };
+    }
+    return { ok: true, output: `shadows ${s.enabled ? "on" : "off"} · ${s.size}px · distance ${s.distance} · strength ${s.strength}` };
+  });
+
+  reg.register("log", (args) => {
+    const parts = args.trim().split(/\s+/);
+    const level = (parts[0] as "log" | "info" | "warn" | "error") ?? "log";
+    if (!["log", "info", "warn", "error"].includes(level)) {
+      return { ok: false, output: "usage: log <log|info|warn|error> <message>" };
+    }
+    const msg = args.trim().slice(level.length).trim();
+    if (msg.length === 0) return { ok: false, output: "usage: log <level> <message>" };
+    engine.log.write(level, "console", msg);
+    return { ok: true, output: `logged (${engine.log.size} buffered)` };
+  });
+
+  reg.register("errors", () => {
+    const errs = engine.log.history({ level: "error", limit: 20 });
+    if (errs.length === 0) return { ok: true, output: "no errors logged" };
+    return { ok: true, output: errs.map((e) => `${e.system}: ${e.message}`).join("\n") };
+  }, ["err"]);
+
+  reg.register("fov", (args) => {
+    const n = Number(args.trim());
+    if (!Number.isFinite(n) || n <= 0 || n > 179) return { ok: false, output: "usage: fov <1-179> (degrees)" };
+    engine.renderer.camera.fovY = (n * Math.PI) / 180;
+    return { ok: true, output: `fov ${n}°` };
+  });
+
+  reg.register("pos", () => {
+    const c = engine.renderer.camera;
+    return { ok: true, output: `camera ${c.position.x.toFixed(2)}, ${c.position.y.toFixed(2)}, ${c.position.z.toFixed(2)} -> ${c.target.x.toFixed(2)}, ${c.target.y.toFixed(2)}, ${c.target.z.toFixed(2)}` };
+  });
+
+  return reg;
+}
+
+export type { CommandResult };

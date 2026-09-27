@@ -9,6 +9,9 @@ import { hideBlob, makeBlob, stickBlob } from "./rendering/shadows.js";
 import { paintAsphalt, paintBrick, paintGrass, paintNoiseNormal, paintRoof, paintSign } from "./rendering/proctex.js";
 import { makePBR } from "./rendering/materials.js";
 import { makeSpot } from "./rendering/lights.js";
+import { CommandRegistry } from "./debug/logger.js";
+import { registerDefaultCommands } from "./debug/commands.js";
+import { mountConsole, type ConsoleView } from "./debug/console.js";
 import { buildActor, poseActor, type ActorRig } from "./scene/actor.js";
 import { ParticleSystem, type EmitterDef } from "./fx/particles.js";
 import { ScriptRuntime } from "./script/script.js";
@@ -58,6 +61,24 @@ const character = new CharacterController({ speed: 6, jumpSpeed: 8, acceleration
 const fx = new ParticleSystem(world, 256);
 const scripts = new ScriptRuntime(world);
 let scriptErrorShown = 0;
+// Script errors reach the central console, tagged with their entity.
+scripts.onError = (e) => engine.log.error("script", e.message, { entity: e.entity });
+// Debug console (Phase 19): logger + command registry + DOM panel.
+const commands = registerDefaultCommands(new CommandRegistry(), engine, world);
+let consoleView: ConsoleView | null = null;
+const openConsole = () => {
+  if (consoleView) {
+    consoleView.destroy();
+    consoleView = null;
+    return;
+  }
+  consoleView = mountConsole(document.getElementById("ui") ?? document.body, engine.log, commands);
+};
+engine.log.addSink((rec) => {
+  if (rec.level === "error" || rec.level === "warn") {
+    showToast(`${rec.system}: ${rec.message}`.slice(0, 110));
+  }
+});
 
 const HOLO_SCRIPT = `local S = { t = 0 }
 function S.update(api, dt)
@@ -106,6 +127,7 @@ async function bootProject(path: string) {
     mats: renderer.materials,
     fx: () => fx,
     shadows: renderer.shadows,
+    openConsole,
     viewport: () => ({
       view: renderer.camera.view(),
       proj: renderer.camera.projection(canvas.width / Math.max(1, canvas.height)),
@@ -391,7 +413,7 @@ async function build() {
   if (params.has("editor")) {
     editor = new EditorOverlay(world, document.getElementById("ui")!, {
       addTex, projectPath: () => params.get("project"), mats: renderer.materials,
-      fx: () => fx, shadows: renderer.shadows,
+      fx: () => fx, shadows: renderer.shadows, openConsole,
       viewport: () => ({
         view: renderer.camera.view(),
         proj: renderer.camera.projection(canvas.width / Math.max(1, canvas.height)),
@@ -402,7 +424,7 @@ async function build() {
     if (!editor.visible) editor.toggle();
   }
   await loader.hide();
-  menu.show(true, "v2.19.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
+  menu.show(true, "v2.20.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
 }
 
 async function enter() {
@@ -551,6 +573,10 @@ window.addEventListener("keydown", (e) => {
     engine.quality.applyPreset(next);
     engine.quality.save();
     showToast(`Quality: ${next} (${Math.round(engine.quality.config.pixelScale * 100)}% res, ${engine.quality.config.fpsLimit || "uncapped"} fps, shadows ${engine.quality.config.shadowSize || "off"})`);
+  }
+  if (e.code === "Backquote" && (e.target as HTMLElement).tagName !== "INPUT") {
+    e.preventDefault();
+    openConsole();
   }
 });
 

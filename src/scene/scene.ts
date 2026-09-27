@@ -271,6 +271,8 @@ export interface LoadOptions {
   uidMapper?: UidMapper;
   /** Per-entity failures are collected here instead of thrown. */
   errors?: string[];
+  /** Optional central logger: every skipped entity is also reported there. */
+  log?: { error(system: string, message: string, data?: unknown): unknown };
 }
 
 /**
@@ -284,12 +286,17 @@ export function loadEntities(
   opts: LoadOptions = {}
 ): { loaded: number; skipped: number; byUid: Map<string, Entity> } {
   const { addTex, uidMapper = (u: string) => u, errors } = opts;
+  const log = opts.log;
   let loaded = 0;
   let skipped = 0;
   const byUid = new Map<string, Entity>();
   const pendingParents: { e: Entity; parentUid: string }[] = [];
   const note = (msg: string) => {
     if (errors && errors.length < 50) errors.push(msg);
+  };
+  const fail = (msg: string) => {
+    note(msg);
+    if (log) log.error("scene", msg);
   };
 
   for (const s of entities) {
@@ -360,7 +367,7 @@ export function loadEntities(
       loaded++;
     } catch (err) {
       skipped++;
-      note(`entity ${s?.uid ?? "(no uid)"} skipped: ${err instanceof Error ? err.message : String(err)}`);
+      fail(`entity ${s?.uid ?? "(no uid)"} skipped: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -370,7 +377,7 @@ export function loadEntities(
       try {
         setParent(world, e, p);
       } catch {
-        note(`parent link ${parentUid} rejected (cycle?)`);
+        fail(`parent link ${parentUid} rejected (cycle?)`);
       }
     }
   }

@@ -50,7 +50,8 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Actors | `scene/actor.ts` | 7-box cartoon rigs, painted faces, sine walk pose. No skeleton |
 | Assets | `assets/loader.ts` | Cached fetch for texture/OBJ/JSON. Not wired to editor |
 | Asset DB | `assets/db.ts` (NEW, v2.15) | GUID registry, per-kind import settings, dependency graph + cycle guard, versioned JSON, exposed as `Engine.assets` |
-| Editor | `editor/overlay.ts` | F9 panel: hierarchy list, transform/color inspector, add/delete, pause, project save / file fallback |
+| Editor | `editor/overlay.ts`, `editor/console.ts` | F9 panel: hierarchy list, transform/color inspector, add/delete, pause, project save / file fallback; `~` opens the debug console |
+| Debug | `debug/logger.ts`, `debug/commands.ts` (NEW, v2.20) | Central log + error sink with system tags, stacks, bounded/folded buffer, level+text filters; command registry with 11 real commands (stats, quality, shadows, entities, errors, fov, …). Game systems that throw are caught per frame and reported, never fatal |
 | UI | `ui/{menu,hud}.ts` | Main-menu overlay with hooks, FPS/message HUD |
 | Net | `net/p2p.ts` | Serverless WebRTC listen-server (host authority, snapshots, 4 max). **Untested 2-machine** |
 | Projects | `electron/*`, `project-template/` | Launcher (new/recents/samples/guide), scene.json projects |
@@ -135,6 +136,7 @@ Next 3 subsystems in priority order:
   16. ~~Quality settings (4 presets, sanitisation, localStorage persistence, resolution scaling, FPS cap) + exposure/tone-mapping/gamma output stage~~ DONE (v2.17; GL path needs browser confirmation)
   17. ~~Spot lights + light types (cone falloff, range cutoff, slot ranking, ECS Light component, local-space aim)~~ DONE (v2.18; GL path needs browser confirmation)
   18. ~~Scene v4: migration, per-entity recovery, additive scenes, UID overrides, full component round-trip~~ DONE (v2.19)
+  19. ~~Debug console: central logger with system tags/stacks/folding, command registry, per-frame system error containment~~ DONE (v2.20)
 Remaining future work (deferred until demanded by a real game): cascaded/point/spot
 shadows, skeletal animation, package manager, 2D renderer, net host migration.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,

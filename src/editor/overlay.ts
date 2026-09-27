@@ -30,6 +30,10 @@ export interface EditorHooks {
   fx?: () => ParticleSystem | null;
   /** Renderer-side shadow settings, so the editor stays renderer-agnostic. */
   shadows?: ShadowSettings;
+  /** Opens the debug console panel (Phase 19). */
+  openConsole?: () => void;
+  /** Saves the current scene to the project (needs an Electron host). */
+  saveSceneFile?: () => void;
 }
 
 interface CompSnap {
@@ -195,7 +199,7 @@ export class EditorOverlay {
     this.panel.appendChild(row2);
 
     const row3 = document.createElement("div");
-    row3.style.cssText = "display:flex;gap:6px;margin:0 0 8px 0;align-items:center;";
+    row3.style.cssText = "display:flex;gap:6px;margin:0 0 8px 0;align-items:center;flex-wrap:wrap;";
     this.snapBtn = mkBtn("Snap 0.5: on", () => {
       this.snapOn = !this.snapOn;
       this.snapBtn.textContent = `Snap 0.5: ${this.snapOn ? "on" : "off"}`;
@@ -212,7 +216,7 @@ export class EditorOverlay {
     }
     const hint = document.createElement("div");
     hint.style.cssText = "opacity:0.6;font-size:11px;";
-    hint.textContent = "drag arrows · click picks · Del deletes";
+    hint.textContent = "F9 panel · ~ console · F5 save · Del delete";
     row3.appendChild(hint);
     this.panel.appendChild(row3);
 
@@ -261,6 +265,11 @@ export class EditorOverlay {
       }
       if ((e.code === "Delete" || e.code === "Backspace") && this.panel.style.display !== "none" && this.selected >= 0) {
         this.deleteSelected();
+      }
+      // ~ opens the debug console (Phase 19)
+      if (e.code === "Backquote" && !e.ctrlKey && !e.metaKey && this.hooks?.openConsole) {
+        e.preventDefault();
+        this.hooks.openConsole();
       }
     });
   }
