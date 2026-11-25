@@ -1,4 +1,4 @@
-# Glitch Game Engine v2.12
+# Glitch Game Engine v2.27
 
 Minimal 3D web game engine (raw WebGL2, zero runtime deps). Launches with a
 project browser (New / My / Sample projects), edits scenes in-app, and ships
@@ -11,10 +11,11 @@ npm install
 npm run dist:exe
 ```
 
-Tests: `npm test` (vitest, 158 tests: math, ECS, hierarchy, IDs, prefabs,
-migration, rendering/culling/instancing, materials/PBR, physics, layers,
-shapes, triggers, raycast, character, scene, sky, input/actions, audio,
-samples/synth, particles, terrain, navigation/AI, scripting, editor/history/gizmo/DOM).
+Tests: `npm test` (vitest, 540 tests: math, ECS, hierarchy, IDs, prefabs,
+migration, rendering/culling/instancing/LOD, materials/PBR, physics, layers,
+shapes, triggers, raycast, character, third-person camera, scene, sky,
+input/actions, audio, samples/synth, particles, terrain, navigation/AI,
+scripting, editor/history/gizmo/DOM, networking, build settings).
 
 Launch the app → project browser → **Sample Projects → Play**
 (Dusk Street: Night Shift), or **New Project** and press **F9** to edit.
@@ -24,9 +25,9 @@ Launch the app → project browser → **Sample Projects → Play**
 - `src/math/` — `Vec3`, `Mat4`
 - `src/core/` — `GameLoop` (fixed-step), `Time`, `Engine` (physics + triggers wired), `loading.ts` (staged loading screen)
 - `src/ecs/` — `World`, `Transform/Rigidbody/BoxCollider/SphereCollider/CapsuleCollider/MeshRef(+texture)/Spin/PlayerTag`, `hierarchy.ts` (parent/child, world matrices, destroy trees), `ids.ts` (opt-in stable UIDs)
-- `src/rendering/` — `Renderer` (textured, multi-light, distance fog, frustum culling, instancing, PBR path, frame stats), `Camera`, `GpuMesh` (+UVs), `texture.ts`, `material.ts` (legacy Phong), `materials.ts` (PBR DB + presets), `pbr.ts` (CPU reference BRDF), `lights.ts`, `obj.ts`, `sky.ts` (dawn/day/dusk/night palette), `proctex.ts` (procedural canvas textures: faces, cloth, brick, grass, asphalt, roof, water, wood, signs, noise normals), `shadows.ts` (contact blobs), `frustum.ts` (planes + sphere test), `instancing.ts` (batching + instanced draws)
-- `src/physics/` — AABB `physics.ts` (box/sphere/capsule, layers), `layers.ts` (32-bit layer/mask filtering), `raycast.ts` (mask/ignore/normals/spheres), `trigger.ts`, `character.ts`
-- `src/input/` — `input.ts` (keys + pressed/released edges, wheel, touch, pointer lock, detach) + `actionmap.ts` (named buttons/axes/vectors, contexts, gamepad, rebind, JSON) + legacy `actions.ts` wrapper (unchanged API)
+- `src/rendering/` — `Renderer` (textured, multi-light, distance fog, frustum culling, instancing, PBR path, frame stats), `Camera`, `thirdperson.ts` (smoothed orbit boom with wall collision, shoulder offset, zoom), `GpuMesh` (+UVs), `texture.ts`, `material.ts` (legacy Phong), `materials.ts` (PBR DB + presets), `pbr.ts` (CPU reference BRDF), `lights.ts`, `obj.ts`, `sky.ts` (dawn/day/dusk/night palette), `proctex.ts` (procedural canvas textures: faces, cloth, brick, grass, asphalt, roof, water, wood, signs, noise normals), `shadows.ts` (contact blobs), `frustum.ts` (planes + sphere test), `instancing.ts` (batching + instanced draws)
+- `src/physics/` — AABB `physics.ts` (box/sphere/capsule, layers), `layers.ts` (32-bit layer/mask filtering), `raycast.ts` (mask/ignore/normals/spheres), `trigger.ts`, `character.ts` (coyote time, jump buffer, variable jump height, run/air control, camera-relative wish helper)
+- `src/input/` — `input.ts` (keys + pressed/released edges, wheel, touch, pointer lock, detach) + `actionmap.ts` (named buttons/axes/vectors, contexts, gamepad, rebind, JSON) + legacy `actions.ts` wrapper (move/jump/reset/run, edge-aware jump)
 - `src/audio/` — `audio.ts` (clips, mixer groups, HRTF positional, listener, loop layers, volume persistence, `playSample` bridge, lookahead step sequencer), `sample.ts` (WAV codec + writer + mixdown), `synth.ts` (procedural notes + sequence timing), `sfx.ts` (procedural thump/noise/sweep/arp buffers), `volume.ts` (dB/gain/attenuation math)
 - `src/world/` — `terrain.ts` (heightfields, sculpt/smooth/noise, bilinear sampling, slope, grid meshes + stride LOD, slope scatter, splat painting)
 - `src/ai/` — `navmesh.ts` (baked walkability grids, A* + smoothing, dynamic obstacles), `agent.ts` (waypoint follow, separation)

@@ -42,7 +42,7 @@ Produced before any new implementation (Phase 0). All paths relative to repo roo
 | Physics + shapes | `physics/physics.ts`, `physics/shapes.ts` (NEW, v2.26) | Kinematic box/sphere/capsule vs static + ground plane, smallest-axis + normal-removal resolve, 32-bit layer/mask filtering. No dynamics-vs-dynamics. v2.26 adds `physics/shapes.ts`: triangle-soup mesh colliders, compound colliders + bounds, sphere cast, overlap query, physics materials, contact collection |
 | Triggers | `physics/trigger.ts` | Center-in-box enter/exit. No extents test, no layers |
 | Raycast | `physics/raycast.ts` | Slab ray vs AABB, closest hit. No mask/normal |
-| Character | `physics/character.ts` | Arcade velocity lerp + jump gate. No coyote/buffer/slopes |
+| Character | `physics/character.ts` | v2.27: acceleration + air control, coyote time, jump buffering, variable jump height, run speed, terminal velocity, landing impacts, camera-relative wish helper. Box colliders stay axis-aligned; slopes work on heightfield terrain |
 | Input | `input/{input,actions}.ts` | Keyboard set + pointer drag + WASD/Space/R mapping. No pressed/released edges, remap, touch |
 | Audio | `audio/*.ts` | Clips + mixer groups + HRTF positional + listener + loops + sequencer + volume persist; pure WAV codec, procedural notes/SFX, dB math |
 | Scene | `scene/scene.ts` | v4 JSON: versioned + migrated (v1/v2/v3 upgrade field-by-field), per-entity recovery, additive load, UID overrides, full collider/light/terrain/spin/trigger/rigidbody state; deterministic 2-space output |
@@ -161,6 +161,8 @@ Next 3 subsystems in priority order:
   27. ~~Physics extras: mesh colliders (triangle soup), compound colliders + bounds, sphere cast, overlap query, physics materials, contact collection through the layer/mask rule~~ DONE (v2.26)
   28. ~~LOD: screen-coverage level selection with hysteresis, cull floor, per-entity level history, scene round-trip, pyramid/sphere proxy primitives, LOD treeline in the sample~~ DONE (v2.26; GL mesh-swap path needs browser confirmation)
   29. ~~Build settings + Linux target: per-project `build.json` (validated), host info via IPC, electron-builder config fragment, `build` console command, `dist:win/linux/mac/all` scripts~~ DONE (v2.26; AppImage needs a symlink-capable host — see below)
+  30. ~~Character controller v2: air control, coyote time, jump buffering, variable jump height, sprint, terminal velocity, landing-impact events, camera-relative wish direction~~ DONE (v2.27)
+  31. ~~Third-person camera: smoothed orbit pivot, shoulder offset, injection-tested wall probe, immediate pull-in + eased zoom-out, pitch/zoom clamps~~ DONE (v2.27; GL view needs a browser to confirm)
 Remaining future work (deferred until demanded by a real game): cascaded/point/spot
 shadows, skeletal animation, package manager, 2D renderer, net host migration.
 Deferred until demanded by a real game: deferred rendering, GI, terrain,

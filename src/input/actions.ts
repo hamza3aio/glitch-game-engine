@@ -14,6 +14,7 @@ export class InputActions {
     });
     this.map.defineButton("jump", { keys: ["Space"] });
     this.map.defineButton("reset", { keys: ["KeyR"] });
+    this.map.defineButton("run", { keys: ["ShiftLeft", "ShiftRight"] });
   }
 
   update(): void {
@@ -27,6 +28,15 @@ export class InputActions {
 
   jump(): boolean {
     return this.map.down("jump");
+  }
+
+  /** True only on the frame the jump button went down (keyboard or pad). */
+  jumpPressed(): boolean {
+    return this.map.pressed("jump");
+  }
+
+  run(): boolean {
+    return this.map.down("run");
   }
 
   reset(): boolean {

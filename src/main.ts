@@ -1,7 +1,9 @@
 import { Engine } from "./core/engine.js";
 import { LoadingScreen, nextFrame } from "./core/loading.js";
 import { Vec3 } from "./math/vec3.js";
-import { CharacterController } from "./physics/character.js";
+import { CharacterController, cameraRelativeWish, facingFromWish } from "./physics/character.js";
+import { raycastScene } from "./physics/raycast.js";
+import { ThirdPersonCamera } from "./rendering/thirdperson.js";
 import { InputActions } from "./input/actions.js";
 import { QUALITY_LEVELS } from "./core/quality.js";
 import { skyAt } from "./rendering/sky.js";
@@ -66,7 +68,13 @@ function showModal(title: string, body: string, buttons: { label: string; fn: ()
 const engine = new Engine(canvas);
 const { world, input, audio, renderer } = engine;
 const actions = new InputActions(input);
-const character = new CharacterController({ speed: 6, jumpSpeed: 8, acceleration: 40 });
+const character = new CharacterController({
+  speed: 6, jumpSpeed: 8, acceleration: 40, runSpeed: 9,
+  coyoteTime: 0.12, jumpBuffer: 0.15, jumpCut: 0.45,
+});
+// Third-person boom with collision; the demo's colliders double as walls.
+const thirdCam = new ThirdPersonCamera({ distance: 8, height: 1.7, shoulder: 0.4 });
+renderer.camera = thirdCam;
 const fx = new ParticleSystem(world, 256);
 const scripts = new ScriptRuntime(world);
 let scriptErrorShown = 0;
@@ -569,7 +577,7 @@ async function build() {
     });
   }
   await loader.hide();
-  menu.show(true, "v2.26.0", "Night Shift: deliver 5 crates before 06:00. WASD + drag, H shadows, Q quality.");
+  menu.show(true, "v2.27.0", "Night Shift: deliver 5 crates before 06:00. WASD + Shift run, Space jump, drag/wheel camera, H shadows, Q quality.");
 }
 
 async function enter() {
@@ -619,18 +627,21 @@ engine.addSystem((dt) => {
 
   if (entered && !over) {
     const move = actions.move();
-    const yaw = renderer.camera.yaw;
-    const sin = Math.sin(yaw), cos = Math.cos(yaw);
-    const wishX = move.x * cos - move.z * sin;
-    const wishZ = -move.z * cos - move.x * sin;
-    const wasAir = !rb.grounded;
-    character.move(t, rb, wishX, wishZ, actions.jump(), dt, () => audio.jump());
-    if (wasAir && rb.grounded) audio.land();
+    const wish = cameraRelativeWish(move.x, move.z, thirdCam.yaw);
+    character.update(t, rb, {
+      x: wish.x, z: wish.z,
+      jumpPressed: actions.jumpPressed(),
+      jumpHeld: actions.jump(),
+      run: actions.run(),
+    }, dt, {
+      onJump: () => audio.jump(),
+      onLand: (impact) => { if (impact > 4) audio.land(); },
+    });
     if (actions.reset()) resetShift();
-    const moving = Math.abs(wishX) + Math.abs(wishZ) > 0.1;
+    const moving = Math.abs(wish.x) + Math.abs(wish.z) > 0.1;
     movingPlayer = moving;
     if (moving) {
-      t.rotationY = Math.atan2(wishX, wishZ);
+      t.rotationY = facingFromWish(wish.x, wish.z);
       walkPhase += dt * 9;
     }
     poseActor(world, rig, t.position.x, Math.max(0, t.position.y - 1.0), t.position.z, t.rotationY, walkPhase, moving);
@@ -662,8 +673,12 @@ engine.addSystem((dt) => {
     }
 
     const drag = input.consumeDrag();
-    renderer.camera.updateOrbit(drag.dx, drag.dy);
-    renderer.camera.follow(t.position);
+    thirdCam.orbit(drag.dx, drag.dy);
+    thirdCam.zoom(input.consumeWheel());
+    thirdCam.update(t.position, dt, (origin, dir, maxDist) => {
+      const hit = raycastScene(world, { origin, direction: dir, maxDist }, { ignore: player });
+      return hit ? hit.distance : null;
+    });
   } else if (!entered) {
     renderer.camera.yaw += dt * 0.06;
     renderer.camera.dist = 20;
